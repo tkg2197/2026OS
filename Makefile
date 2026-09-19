@@ -28,7 +28,7 @@ UserOBJ = $(patsubst $(UserPath)/%.c, $(TARGET)/user/%.o, $(filter %.c, $(UserSo
 # QEMU模拟器配置
 QEMU     = qemu-system-riscv64  # 指定QEMU程序
 QEMUOPTS = -machine virt -bios default -kernel $(ELFKernel)  # 使用OpenSBI启动S-mode内核
-QEMUOPTS += -m 128M -smp $(CPUNUM) -nographic  # 内存、CPU数量及无图形界面配置
+QEMUOPTS += -m 130M -smp $(CPUNUM) -nographic  # 物理内存从0x80000000到0x88200000
 
 # 调试相关配置
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)  # 动态计算GDB端口号

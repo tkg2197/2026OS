@@ -48,5 +48,6 @@ SECTIONS
 
   . = ALIGN(4096);
   PROVIDE(ALLOC_BEGIN = .);
-  PROVIDE(ALLOC_END = 0x80000000 + 128M);
+  /* QEMU RAM is 130 MiB from 0x80000000; leave the first 2 MiB for OpenSBI. */
+  PROVIDE(ALLOC_END = 0x80200000 + 128M);
 }

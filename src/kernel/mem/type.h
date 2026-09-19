@@ -40,7 +40,7 @@ typedef struct alloc_region
 
 // 内核基地址
 #define PHYS_MEM_BASE 0x80000000ul
-#define PHYS_MEM_SIZE (128ul * 1024 * 1024)
+#define PHYS_MEM_SIZE (130ul * 1024 * 1024)
 #define PHYS_MEM_END (PHYS_MEM_BASE + PHYS_MEM_SIZE)
 #define KERNEL_BASE 0x80200000ul
 
