@@ -12,6 +12,12 @@ typedef unsigned int uint32;
 typedef unsigned long long uint64;
 typedef unsigned long long reg;
 
+typedef struct sbi_ret
+{
+    int64 error;
+    int64 value;
+} sbi_ret_t;
+
 typedef enum
 {
     false = 0,
@@ -27,15 +33,13 @@ typedef enum
 
 #define NCPU 2 // 最大CPU数量
 
+/* SBI Hart State Management extension */
+#define SBI_SUCCESS 0
+#define SBI_EXT_HSM 0x48534D
+#define SBI_HSM_HART_START 0
+
 
 /* RISC-V 架构常量与宏定义 */
-
-/* Machine Status Register (mstatus) */
-#define MSTATUS_MPP_MASK (3L << 11)
-#define MSTATUS_MPP_M (3L << 11)
-#define MSTATUS_MPP_S (1L << 11)
-#define MSTATUS_MPP_U (0L << 11)
-#define MSTATUS_MIE (1L << 3)
 
 /* Supervisor Status Register (sstatus) */
 #define SSTATUS_SPP (1L << 8)

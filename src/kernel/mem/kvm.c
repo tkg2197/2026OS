@@ -9,7 +9,6 @@ static pgtbl_t kernel_pgtbl;
 // 提示：使用 VA_TO_VPN + PTE_TO_PA + PA_TO_PTE
 pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
 {
-
 }
 
 // 在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射
@@ -18,21 +17,19 @@ pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
 // 注意: perm 应该如何使用
 void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm)
 {
-
 }
 
 // 解除pgtbl中[va, va+len)区域的映射
 // 如果freeit == true则释放对应物理页, 默认是用户的物理页
 void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit)
 {
-
 }
 
-// 完成UART、CLINT、PLIC、内核代码区、内核数据区、可分配区域的页表映射
+// 完成UART、PLIC、内核代码区、内核数据区、可分配区域的页表映射
+// CLINT属于M-mode资源，OpenSBI版内核通过SBI管理timer/IPI，不直接映射。
 // 相当于部分填充kernel_pgtbl
 void kvm_init()
 {
-
 }
 
 // 每个CPU都需要调用, 从不使用页表切换到使用内核页表

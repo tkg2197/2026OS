@@ -31,27 +31,22 @@ void pop_off(void)
         intr_on();
 }
 
-
 // 自选锁初始化
 void spinlock_init(spinlock_t *lk, char *name)
 {
-
 }
 
 // 是否持有自旋锁
 bool spinlock_holding(spinlock_t *lk)
 {
-
 }
 
 // 获取自选锁
 void spinlock_acquire(spinlock_t *lk)
 {
-
 }
 
 // 释放自旋锁
 void spinlock_release(spinlock_t *lk)
 {
-
 }

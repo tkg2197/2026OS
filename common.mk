@@ -8,6 +8,7 @@ OBJDUMP = ${TOOLPREFIX}objdump
 
 # 编译相关配置
 CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS += -std=gnu17
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax

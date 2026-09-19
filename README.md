@@ -6,7 +6,7 @@
 
 完成lab-1后, OS内核已经可以进入main函数并掌控UART资源做一些输出了
 
-在lab-2中, 我们要开始认识和管理“程序除了CPU外最常访问的共享资源——内存”
+在lab-2中, 我们要加载OpenSBI固件来简化boot流程, 并且认识和管理“程序除了CPU外最常访问的共享资源——内存”
 
 内存管理的实现不是一步到位的, lab-2主要关注物理内存和内核态虚拟内存, 剩余部分将在后面的实验逐渐完善
 
@@ -16,19 +16,20 @@ ECNU-OSLAB-2025-TASK
 ├── LICENSE        开源协议
 ├── registers.xml  配置了可视化调试环境
 ├── common.mk      Makefile中一些工具链的定义
-├── Makefile       编译运行整个项目 (CHANGE, 增加trap和mem目录作为target)
-├── kernel.ld      定义了内核程序在链接时的布局 (CHANGE, 增加一些关键位置的标记)
+├── Makefile       编译运行整个项目 (CHANGE, 支持OpenSbi)
+├── kernel.ld      定义了内核程序在链接时的布局 (CHANGE, 修改了内核入口地址)
 ├── pictures       README使用的图片目录 (CHANGE, 日常更新)
 ├── README.md      实验指导书 (CHANGE, 日常更新)
 └── src            源码
     └── kernel     内核源码
         ├── arch   RISC-V相关
-        │   ├── method.h
+        │   ├── method.h(CHANGE, 加入OpenSBI调用)
         │   ├── mod.h
-        │   └── type.h
+        ├── ├── sbi.c(NEW)
+        │   └── type.h(CHANGE)
         ├── boot   机器启动
-        │   ├── entry.S
-        │   └── start.c
+        │   ├── entry.S(CHANGE, 从 a0 取得 hart ID，并将其传入start)
+        │   └── start.c(TODO, 删除M-mode的寄存器操作)
         ├── lock   锁机制
         │   ├── spinlock.c
         │   ├── method.h
@@ -51,7 +52,7 @@ ECNU-OSLAB-2025-TASK
         ├── trap   陷阱模块
         │   ├── method.h (NEW)
         │   ├── mod.h (NEW)
-        │   └── type.h (NEW, 增加CLINT和PLIC寄存器定义)
+        │   └── type.h (NEW, 增加PLIC寄存器定义)
         └── main.c (TODO)
 ```
 **标记说明**
@@ -62,13 +63,46 @@ ECNU-OSLAB-2025-TASK
 
 **TODO**: 你需要实现新功能 / 你需要完善旧功能
 
-## 第一阶段: 物理内存
+## 第一阶段: 更加方便的启动OpenSBI
+
+### 第一步: 从裸机到OpenSBI
+从底层角度出发, 当前内核只依赖RISC-V体系结构的寄存器, 不依赖任何其他软件
+
+在QEMU上执行时这一点是可以接受的, 但是在未来移植到物理开发板后一切将变得困难
+
+为了便于移植工作, 我们需要引入OpenSBI作为系统底层支撑的一部分 (src/kernel/arch/type.h src/kernel/arch/sbi.c)
+关于**OpenSBI**, 你需要知道这些事情:
+
+1. OpenSBI工作在M-mode, 负责一切需要在M-mode做的工作; 有了它之后, OS内核从启动开始一直工作在S-mode, 不存在显式的M-mode与S-mode切换, 可以简化一些复杂逻辑
+
+2. QEMU模式下: OpenSBI工作在**0x80000000-0x802000000**地址空间, 因此内核的**entry**需要调整为**0x802000000** (通过定义`KERNEL_BASE`)
+
+3. 我们用到的OpenSBI包括: 串口读写、**TIMECMP**寄存器的设置(后续在lab3中实现中断中)、CPU核心的启动与关闭、刷新TLB
+
+### 第二步: 内核启动路径的变化
+我们知道, 原版的内核启动流程是: **entry.S** (M-mode) -> **start.c** (M-mode) -> **main.c** (S-mode)
+
+新版的启动流程是: **OpenSBI** (M-mode) -> **entry.S**(S-mode) -> **start.c** (S-mode) -> **main.c** (S-mode)
+
+带来的影响包括:
+
+1. 对于entry.S: 不能执行类似**csrr**的M-mode特权指令, 还是需要执行SP指针的设置和PC指针跳转到start.c
+
+2. 对于start.c: hartid不能通过寄存器读取 (M-mode特权指令), OpenSBI会将hartid作为参数传入,感兴趣的同学可以自行ai搜寻一下这里面的传递参数的约定
+
+3. 对于start.c: 不需要执行中断委托、时钟初始化、状态欺骗等, 因为OpenSBI的存在简化了这些工作, 此时就是S-mode
+
+4. 对于main.c: 核心的变化是只有一个CPU核心会自启动, 其他CPU核心都需要手动唤醒(通过SBI HSM硬件线程状态管理扩展,该扩展允许在S模式下通过软件请求改变hart状态); 
+
+## 第二阶段: 物理内存
 
 首先需要关注的文件是 **kernel.ld** 文件, 它规定了内核文件 **kernel-qemu.elf** 在载入内存时的布局
 
-物理内存按照地址空间划分为三个部分：
+物理内存按照地址空间划分为四个部分：
 
-- **0x80000000 ~ KERNEL_DATA** 存放了 **kernel-qemu.elf的代码**
+- **0x80000000 ~ 0x80200000** 存放了 **固件OpenSBI**
+- 
+- **0x80200000 ~ KERNEL_DATA** 存放了 **kernel-qemu.elf的代码**
 
 - **KERNEL_DATA ~ ALLOC_BEGIN** 存放了 **kernel-qemu.elf的数据**
 
@@ -106,7 +140,7 @@ void pmem_free();    // 释放一个之前申请的物理页
 
 为了保证资源共享的可靠性, 当尝试访问`alloc_region`时需要获取和释放自旋锁
 
-## 第一阶段: 测试用例
+## 第二阶段: 测试用例
 
 **test-1**
 
@@ -129,6 +163,17 @@ int main()
         printf("cpu %d is booting!\n", cpuid);
         __sync_synchronize();
         started = 1;
+
+        for (uint64 id = 1; id < NCPU; id++)
+        {
+            sbi_ret_t ret = sbi_hart_start(id, (uint64)_entry, 0);
+            if (ret.error != SBI_SUCCESS)
+            {
+                printf("failed to start cpu %d: error %d\n",
+                       (int)id, (int)ret.error);
+                panic("sbi_hart_start");
+            }
+        }
 
         for(int i = 0; i < 512; i++) {
             mem[i] = pmem_alloc(true);
@@ -281,7 +326,7 @@ void test_case_2()
 
 2. 测试用户空间物理页申请和释放的正确性
 
-## 第二阶段: 内核态虚拟内存
+## 第三阶段: 内核态虚拟内存
 
 完成物理内存管理的部分后, 你应该注意到“内存”和“串口”这两种共享资源的区别:
 
@@ -359,7 +404,7 @@ void test_case_2()
 
 之后的内存访问本质都是访问虚拟地址, 虚拟地址经过页表和MMU的协作, 被自动翻译为物理地址
 
-## 第二阶段: 测试用例
+## 第三阶段: 测试用例
 
 **test-1**
 
@@ -377,7 +422,18 @@ int main()
 
         printf("cpu %d is booting!\n", cpuid);
         __sync_synchronize();
-        // started = 1;
+        started = 1;
+
+        for (uint64 id = 1; id < NCPU; id++)
+        {
+            sbi_ret_t ret = sbi_hart_start(id, (uint64)_entry, 0);
+            if (ret.error != SBI_SUCCESS)
+            {
+                printf("failed to start cpu %d: error %d\n",
+                       (int)id, (int)ret.error);
+                panic("sbi_hart_start");
+            }
+        }
 
         pgtbl_t test_pgtbl = pmem_alloc(true);
         uint64 mem[5];
@@ -492,9 +548,8 @@ void test_mapping_and_unmapping()
 
 **尾声**
 
-这次实验在`kvm_init`里埋下了一些伏笔: CLINT、PLIC的寄存器映射还没用起来
+这次实验在`kvm_init`里埋下了一些伏笔: PLIC的寄存器映射与timer还没用起来
 
 不要着急, 下一次实验的主题是——**中断和异常**, 那时会用到
 
 实验的基本原则之一: 绝大多数增添或修改只服务于本次的实验目标, 少量服务于下一次实验的实验目标
-

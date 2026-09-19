@@ -59,10 +59,7 @@ static void printptr(uint64 x)
 */
 void printf(const char *fmt, ...)
 {
-
 }
-
-
 
 /* 如果发生panic, UART的停止标志 */
 volatile int panicked = 0;
@@ -79,5 +76,4 @@ void panic(const char *s)
 /* 如果不满足条件, 则调用panic */
 void assert(bool condition, const char *warning)
 {
-
 }

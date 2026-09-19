@@ -27,7 +27,7 @@ UserOBJ = $(patsubst $(UserPath)/%.c, $(TARGET)/user/%.o, $(filter %.c, $(UserSo
 
 # QEMU模拟器配置
 QEMU     = qemu-system-riscv64  # 指定QEMU程序
-QEMUOPTS = -machine virt -bios none -kernel $(TARGET)/kernel/kernel-qemu.elf  # 基础启动参数
+QEMUOPTS = -machine virt -bios default -kernel $(ELFKernel)  # 使用OpenSBI启动S-mode内核
 QEMUOPTS += -m 128M -smp $(CPUNUM) -nographic  # 内存、CPU数量及无图形界面配置
 
 # 调试相关配置
@@ -46,7 +46,7 @@ run: build
 	$(QEMU) $(QEMUOPTS)
 
 # 调试目标：启动带GDB调试的QEMU
-debug: $(KERN) .gdbinit
+debug: $(ELFKernel) .gdbinit
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
 # 构建目标：创建输出目录并编译内核

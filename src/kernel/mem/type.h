@@ -1,7 +1,6 @@
 #pragma once
 #include "../lock/type.h"
 
-
 /*---------------------------------- 关于物理内存 ---------------------------------------*/
 
 /*
@@ -40,7 +39,10 @@ typedef struct alloc_region
 */
 
 // 内核基地址
-#define KERNEL_BASE 0x80000000ul
+#define PHYS_MEM_BASE 0x80000000ul
+#define PHYS_MEM_SIZE (128ul * 1024 * 1024)
+#define PHYS_MEM_END (PHYS_MEM_BASE + PHYS_MEM_SIZE)
+#define KERNEL_BASE 0x80200000ul
 
 // from kernel.ld
 extern char KERNEL_DATA[];
@@ -56,7 +58,7 @@ extern char ALLOC_END[];
     内核使用RISC-V体系结构中的SV39作为虚拟内存的设计规范
 
     1. 页表与satp寄存器
-    
+
     satp寄存器的bit结构: MODE(4bit) + ASID(16bit) + PPN(44bit)
     - MODE控制虚拟内存模式
     - ASID与Flash刷新有关
@@ -71,7 +73,7 @@ extern char ALLOC_END[];
           9    +   9    +   9    +   12    = 39 (使用uint64存储) => 最大虚拟地址为512GB
     SV39使用三级页表对应三级VPN, VPN[2]称为顶级页表、VPN[1]称为次级页表、VPN[0]称为低级页表
     为什么每一级页框号是"9": 4KB/sizeof(PTE) = 512 = 2^9 所以一个物理页可以存放512个页表项
-    生活中的例子: 假设你要在全国范围内找一个不认识的大学老师, 
+    生活中的例子: 假设你要在全国范围内找一个不认识的大学老师,
     - 你可以先到教育部(顶级页表)查询, 得知这个老师属于大学A
     - 你接着来到大学A(次级页表)查询, 得知这个老师属于学院B
     - 你最后来到学院B(低级页表)查询, 得知这个老师属于办公室C
@@ -90,7 +92,7 @@ extern char ALLOC_END[];
 
 // 页表项和页表(页表项数组)
 typedef uint64 pte_t;
-typedef pte_t* pgtbl_t;
+typedef pte_t *pgtbl_t;
 
 // satp寄存器相关
 #define SATP_SV39 (8L << 60)                                           // MODE = SV39
@@ -101,7 +103,7 @@ typedef pte_t* pgtbl_t;
 #define VA_TO_VPN(va, level) ((((uint64)(va)) >> VA_SHIFT(level)) & 0x1FF)
 
 // PA和PTE之间的转换
-#define PA_TO_PTE(pa)  ((((uint64)(pa)) >> 12) << 10)
+#define PA_TO_PTE(pa) ((((uint64)(pa)) >> 12) << 10)
 #define PTE_TO_PA(pte) (((uint64)(pte) >> 10) << 12)
 
 // 页面权限控制

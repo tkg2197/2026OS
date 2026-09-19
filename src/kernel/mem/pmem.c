@@ -7,12 +7,11 @@ static alloc_region_t kern_region, user_region;
 // 本质上就是填写kern_region和user_region, 包括基本数值和空闲链表
 void pmem_init(void)
 {
-
 }
 
 // 尝试返回一个可分配的清零后的物理页
 // 失败则panic锁死
-void* pmem_alloc(bool in_kernel)
+void *pmem_alloc(bool in_kernel)
 {
     page_node_t *page;
 
@@ -23,5 +22,4 @@ void* pmem_alloc(bool in_kernel)
 // 失败则panic锁死
 void pmem_free(uint64 page, bool in_kernel)
 {
-
 }

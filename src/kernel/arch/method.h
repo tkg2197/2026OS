@@ -1,36 +1,13 @@
 #pragma once
 #include "type.h"
 
+/* OpenSBI调用 */
+sbi_ret_t sbi_ecall(uint64 eid, uint64 fid,
+                    uint64 arg0, uint64 arg1, uint64 arg2,
+                    uint64 arg3, uint64 arg4, uint64 arg5);
+sbi_ret_t sbi_hart_start(uint64 hartid, uint64 start_addr, uint64 opaque);
+
 /* RISC-V相关的寄存器读写 */
-
-// 获取当前CPU的hartid
-static inline uint64 r_mhartid()
-{
-    uint64 x;
-    asm volatile("csrr %0, mhartid" : "=r"(x));
-    return x;
-}
-
-// 读取mstatus寄存器
-static inline uint64 r_mstatus()
-{
-    uint64 x;
-    asm volatile("csrr %0, mstatus" : "=r"(x));
-    return x;
-}
-
-// 写入mstatus寄存器
-static inline void w_mstatus(uint64 x)
-{
-    asm volatile("csrw mstatus, %0" : : "r"(x));
-}
-
-// M-mode发生异常时，返回地址存在mepc寄存器
-// 写入mepc寄存器
-static inline void w_mepc(uint64 x)
-{
-    asm volatile("csrw mepc, %0" : : "r"(x));
-}
 
 // 读取sstatus寄存器
 static inline uint64 r_sstatus()
@@ -74,21 +51,7 @@ static inline void w_sie(uint64 x)
     asm volatile("csrw sie, %0" : : "r"(x));
 }
 
-// 读取mie寄存器
-static inline uint64 r_mie()
-{
-    uint64 x;
-    asm volatile("csrr %0, mie" : "=r"(x));
-    return x;
-}
-
-// 写入mie寄存器
-static inline void w_mie(uint64 x)
-{
-    asm volatile("csrw mie, %0" : : "r"(x));
-}
-
-// S-mode发生异常时，返回地址存在mepc寄存器
+// S-mode发生异常时，返回地址存在sepc寄存器
 // 写入sepc寄存器
 static inline void w_sepc(uint64 x)
 {
@@ -103,34 +66,6 @@ static inline uint64 r_sepc()
     return x;
 }
 
-// 读取mdeleg寄存器
-static inline uint64 r_medeleg()
-{
-    uint64 x;
-    asm volatile("csrr %0, medeleg" : "=r"(x));
-    return x;
-}
-
-// 写入mdeleg寄存器
-static inline void w_medeleg(uint64 x)
-{
-    asm volatile("csrw medeleg, %0" : : "r"(x));
-}
-
-// 读取mideleg寄存器
-static inline uint64 r_mideleg()
-{
-    uint64 x;
-    asm volatile("csrr %0, mideleg" : "=r"(x));
-    return x;
-}
-
-// 写入mideleg寄存器
-static inline void w_mideleg(uint64 x)
-{
-    asm volatile("csrw mideleg, %0" : : "r"(x));
-}
-
 // 写入stvec寄存器
 static inline void w_stvec(uint64 x)
 {
@@ -143,12 +78,6 @@ static inline uint64 r_stvec()
     uint64 x;
     asm volatile("csrr %0, stvec" : "=r"(x));
     return x;
-}
-
-// 写入w_mtvec寄存器
-static inline void w_mtvec(uint64 x)
-{
-    asm volatile("csrw mtvec, %0" : : "r"(x));
 }
 
 // 写入satp寄存器
@@ -171,12 +100,6 @@ static inline void w_sscratch(uint64 x)
     asm volatile("csrw sscratch, %0" : : "r"(x));
 }
 
-// 写入mscratch寄存器
-static inline void w_mscratch(uint64 x)
-{
-    asm volatile("csrw mscratch, %0" : : "r"(x));
-}
-
 // 读取r_scause寄存器
 static inline uint64 r_scause()
 {
@@ -190,20 +113,6 @@ static inline uint64 r_stval()
 {
     uint64 x;
     asm volatile("csrr %0, stval" : "=r"(x));
-    return x;
-}
-
-// 写入mcounteren寄存器
-static inline void w_mcounteren(uint64 x)
-{
-    asm volatile("csrw mcounteren, %0" : : "r"(x));
-}
-
-// 读取mcountern寄存器
-static inline uint64 r_mcounteren()
-{
-    uint64 x;
-    asm volatile("csrr %0, mcounteren" : "=r"(x));
     return x;
 }
 
