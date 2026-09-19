@@ -151,6 +151,8 @@ volatile static int over_1 = 0, over_2 = 0;
 
 static int* mem[1024];
 
+extern void _entry(void);
+
 int main()
 {
     int cpuid = r_tp();
