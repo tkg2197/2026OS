@@ -101,7 +101,7 @@ ECNU-OSLAB-2025-TASK
 物理内存按照地址空间划分为四个部分：
 
 - **0x80000000 ~ 0x80200000** 存放了 **固件OpenSBI**
-- 
+
 - **0x80200000 ~ KERNEL_DATA** 存放了 **kernel-qemu.elf的代码**
 
 - **KERNEL_DATA ~ ALLOC_BEGIN** 存放了 **kernel-qemu.elf的数据**
