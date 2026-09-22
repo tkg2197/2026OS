@@ -1,5 +1,6 @@
 /* 标准输出和报错机制 */
 
+#include <stdarg.h>
 #include "mod.h"
 
 static char digits[] = "0123456789abcdef";
@@ -59,7 +60,66 @@ static void printptr(uint64 x)
 */
 void printf(const char *fmt, ...)
 {
+    va_list ap;
+    va_start(ap, fmt);
+    spinlock_acquire(&print_lk);
+    for(int i = 0;fmt[i] != '\0';i++) {
+        if(fmt[i] != '%') {
+            uart_putc_sync(fmt[i]);
+            continue;
+        }
+        i++;
+        if(fmt[i] == '\0') {
+            uart_putc_sync('%');
+            break;
+        }
+        switch (fmt[i]) {
+            case 'd': {
+                int value = va_arg(ap, int);
+                printint(value, 10, 1);
+                break;
+            } 
 
+            case 'p': {
+                uint32 value = va_arg(ap, uint32);
+                printint(value, 16, 0);
+                break;
+            } 
+
+            case 'x': {
+                uint64 value = va_arg(ap, uint64);
+                printptr(value);
+                break;
+            } 
+
+            case 'c': {
+                int value = va_arg(ap, int);
+                uart_putc_sync(value);
+                break;
+            } 
+
+            case 's': {
+                char * str = va_arg(ap, char *);
+                if (str == NULL) {
+                    str = "(null)";
+                }
+                while (*str != '\0') {
+                    uart_putc_sync(*str);
+                    str++;
+                }
+                break;
+            } 
+            case '%': 
+                uart_putc_sync('%');
+                break;
+            default:
+                uart_putc_sync('%');
+                uart_putc_sync(fmt[i]);
+                break;
+        }
+    }
+    spinlock_release(&print_lk);
+    va_end(ap);
 }
 
 
@@ -79,5 +139,7 @@ void panic(const char *s)
 /* 如果不满足条件, 则调用panic */
 void assert(bool condition, const char *warning)
 {
-
+    if (!condition) {
+        panic(warning);
+    }
 }

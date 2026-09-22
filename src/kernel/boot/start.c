@@ -12,6 +12,10 @@ void start()
 
     // 切换到S-mode后无法访问M-mode的寄存器
     // 所以需要将hartid存到可访问的寄存器tp
+    
+    w_pmpaddr0(PMPADDR_ALL);
+    w_pmpcfg0(PMP_RWX_TOR);
+
     int id = r_mhartid();
     w_tp(id);
 
@@ -22,7 +26,7 @@ void start()
     w_mstatus(status);
 
     // 设置M-mode的返回地址
-
+    w_mepc((uint64)main);
     // 触发状态迁移，回到上一个状态（M-mode->S-mode）
-
+    asm volatile("mret");
 }

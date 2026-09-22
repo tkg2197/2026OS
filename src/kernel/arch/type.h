@@ -48,3 +48,10 @@ typedef enum
 #define SIE_SEIE (1L << 9) /* 外部中断 */
 #define SIE_STIE (1L << 5) /* 定时器中断 */
 #define SIE_SSIE (1L << 1) /* 软件中断 */
+
+#define PMP_R   (1L << 0)
+#define PMP_W   (1L << 1)
+#define PMP_X   (1L << 2)
+#define PMP_A_TOR   (1L << 3)
+#define PMP_RWX_TOR (PMP_R | PMP_W | PMP_X | PMP_A_TOR)
+#define PMPADDR_ALL 0x3fffffffffffffULL
