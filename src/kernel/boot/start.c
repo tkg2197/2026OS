@@ -13,6 +13,7 @@ void start()
     // 切换到S-mode后无法访问M-mode的寄存器
     // 所以需要将hartid存到可访问的寄存器tp
     
+    // 给予S-mode下访问地址的权限
     w_pmpaddr0(PMPADDR_ALL);
     w_pmpcfg0(PMP_RWX_TOR);
 

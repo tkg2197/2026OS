@@ -1,7 +1,9 @@
 #include "arch/mod.h"
 #include "lib/mod.h"
 
+//全局变量是两个cpu共享的
 volatile static int started = 0;
+volatile static int sum = 0;
 
 int main()
 {
@@ -11,11 +13,21 @@ int main()
         printf("cpu %d is booting!\n", cpuid);
         __sync_synchronize();
         started = 1;
+        for (int i = 0; i < 1000000; i++) {
+            __sync_fetch_and_add(&sum, 1);
+        }
+        __sync_synchronize();
+        printf("cpu %d report: sum = %d\n", cpuid, sum);
     }
     else {
         while(started == 0);
         __sync_synchronize();
         printf("cpu %d is booting!\n", cpuid);
+        for (int i = 0; i < 1000000; i++) {
+            __sync_fetch_and_add(&sum, 1);
+        }
+        __sync_synchronize();
+        printf("cpu %d report: sum = %d\n", cpuid, sum);
     }
     while(1);
 }
