@@ -124,3 +124,8 @@ typedef pte_t *pgtbl_t;
 
 // 定义一个非常大的VA, 正常来说所有VA不得大于它
 #define VA_MAX (1ul << 38)
+// PGSIZE 继续保持 4096。
+#define VM_LEVEL_SIZE(level) (1ul << VA_SHIFT(level))
+#define HUGE_2M VM_LEVEL_SIZE(1)
+#define HUGE_1G VM_LEVEL_SIZE(2)
+#define PTE_LEAF(pte) (((pte) & (PTE_R | PTE_W | PTE_X)) != 0)

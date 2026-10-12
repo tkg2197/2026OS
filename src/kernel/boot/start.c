@@ -3,7 +3,7 @@
 // 每个CPU在运行操作系统时需要一个初始的函数栈
 __attribute__((aligned(16))) uint8 CPU_stack[4096 * NCPU];
 
-extern void main();
+extern void main(void);
 
 void start(uint64 hartid)
 {
@@ -12,6 +12,8 @@ void start(uint64 hartid)
     sfence_vma();
 
     // OpenSBI通过a0传入hartid,也就是当前函数的输入参数hartid，我们可以直接使用他,内核继续用tp保存它。
+    w_tp(hartid);
 
     // 进入main函数
+    main();
 }

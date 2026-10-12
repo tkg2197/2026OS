@@ -1,79 +1,252 @@
 #include "mod.h"
 
-// 内核页表
 static pgtbl_t kernel_pgtbl;
 
-// 根据pagetable,找到va对应的pte
-// 若设置alloc=true 则在PTE无效时尝试申请一个物理页
-// 成功返回PTE, 失败返回NULL
-// 提示：使用 VA_TO_VPN + PTE_TO_PA + PA_TO_PTE
-pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
-{
+static void vm_sync(void) {
+    __sync_synchronize();
+    asm volatile("sfence.vma zero, zero" ::: "memory");
 }
 
-// 在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射
-// 本质是找到va在页表对应位置的pte并修改它
-// 检查: va pa 应当是 page-aligned, len(字节数) > 0, va + len <= VA_MAX
-// 注意: perm 应该如何使用
-void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm)
-{
+static uint64 vm_round_len(uint64 va, uint64 len) {
+    assert((va & (PGSIZE - 1)) == 0, "vm: unaligned va");
+    assert(va < VA_MAX && len > 0 && len <= VA_MAX - va, "vm: bad range");
+    return (len + PGSIZE - 1) & ~((uint64)PGSIZE - 1);
 }
 
-// 解除pgtbl中[va, va+len)区域的映射
-// 如果freeit == true则释放对应物理页, 默认是用户的物理页
-void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit)
+static void vm_check_leaf(pte_t pte, int level)
 {
+    assert(PTE_LEAF(pte), "vm: not a leaf");
+    assert(!(pte & PTE_W) || (pte & PTE_R), "vm: W requires R");
+    assert((PTE_TO_PA(pte) & (VM_LEVEL_SIZE(level) - 1)) == 0,
+           "vm: misaligned leaf pa");
 }
 
-// 完成UART、PLIC、内核代码区、内核数据区、可分配区域的页表映射
-// CLINT属于M-mode资源，OpenSBI版内核通过SBI管理timer/IPI，不直接映射。
-// 相当于部分填充kernel_pgtbl
-void kvm_init()
-{
+static void vm_split(pte_t *pte, int level) {
+    assert(level > 0 && level <= 2, "vm_split: bad level");
+    pte_t old = *pte;
+    assert(old & PTE_V, "vm_split: invalid pte");
+    vm_check_leaf(old, level);
+    pgtbl_t child = (pgtbl_t)pmem_alloc(true);
+    uint64 pa = PTE_TO_PA(old);
+    uint64 step = VM_LEVEL_SIZE(level - 1);
+    for (int i = 0; i < 512; i++)
+        child[i] = PA_TO_PTE(pa + (uint64)i * step) | PTE_FLAGS(old); 
+    __sync_synchronize();
+    *pte = PA_TO_PTE(child) | PTE_V | (old & PTE_G);
+    vm_sync();
 }
 
-// 每个CPU都需要调用, 从不使用页表切换到使用内核页表
-// 切换后需要刷新TLB里面的缓存
-void kvm_inithart()
-{
-    w_satp(MAKE_SATP(kernel_pgtbl));
-    sfence_vma();
-}
-
-// 输出页表内容(for debug)
-void vm_print(pgtbl_t pgtbl)
-{
-    // 顶级页表，次级页表，低级页表
-    pgtbl_t pgtbl_2 = pgtbl, pgtbl_1 = NULL, pgtbl_0 = NULL;
-    pte_t pte;
-
-    printf("level-2 pgtbl: pa = %p\n", pgtbl_2);
-    for (int i = 0; i < PGSIZE / sizeof(pte_t); i++)
-    {
-        pte = pgtbl_2[i];
-        if (!((pte)&PTE_V))
-            continue;
-        assert(PTE_CHECK(pte), "vm_print: pte check fail (1)");
-        pgtbl_1 = (pgtbl_t)PTE_TO_PA(pte);
-        printf(".. level-1 pgtbl %d: pa = %p\n", i, pgtbl_1);
-
-        for (int j = 0; j < PGSIZE / sizeof(pte_t); j++)
-        {
-            pte = pgtbl_1[j];
-            if (!((pte)&PTE_V))
-                continue;
-            assert(PTE_CHECK(pte), "vm_print: pte check fail (2)");
-            pgtbl_0 = (pgtbl_t)PTE_TO_PA(pte);
-            printf(".. .. level-0 pgtbl %d: pa = %p\n", j, pgtbl_0);
-
-            for (int k = 0; k < PGSIZE / sizeof(pte_t); k++)
-            {
-                pte = pgtbl_0[k];
-                if (!((pte)&PTE_V))
-                    continue;
-                assert(!PTE_CHECK(pte), "vm_print: pte check fail (3)");
-                printf(".. .. .. physical page %d: pa = %p flags = %d\n", k, (uint64)PTE_TO_PA(pte), (int)PTE_FLAGS(pte));
+static pte_t *vm_walk_level(pgtbl_t pgtbl, uint64 va, int target, bool alloc) {
+    assert(pgtbl != NULL, "vm_walk: null page table");
+    assert(va < VA_MAX, "vm_walk: va out of range");
+    assert(target >= 0 && target <= 2, "vm_walk: bad level");
+    for (int level = 2; level > target; level--) {
+        pte_t *pte = &pgtbl[VA_TO_VPN(va, level)];
+        if (*pte & PTE_V) {
+            if (PTE_LEAF(*pte)) {
+                if (!alloc)
+                    return NULL;
+                vm_split(pte, level);
             }
         }
+        else {
+            if (!alloc)
+                return NULL;
+            pgtbl_t child = (pgtbl_t)pmem_alloc(true);
+            __sync_synchronize();
+            *pte = PA_TO_PTE(child) | PTE_V;
+        }
+        pgtbl = (pgtbl_t)PTE_TO_PA(*pte);
     }
+    return &pgtbl[VA_TO_VPN(va, target)];
+}
+
+pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc) {
+    return vm_walk_level(pgtbl, va, 0, alloc);
+}
+
+pte_t *vm_lookup(pgtbl_t pgtbl, uint64 va, int *level_out) {
+    assert(pgtbl != NULL, "vm_lookup: null page table");
+    assert(va < VA_MAX, "vm_lookup: va out of range");
+    if (level_out != NULL)
+        *level_out = -1;
+    for (int level = 2; level >= 0; level--) {
+        pte_t *pte = &pgtbl[VA_TO_VPN(va, level)];
+        if (!(*pte & PTE_V))
+            return NULL;
+        if (PTE_LEAF(*pte)) {
+            vm_check_leaf(*pte, level);
+            if (level_out != NULL)
+                *level_out = level;
+            return pte;
+        }
+        assert(level > 0, "vm_lookup: bottom non-leaf");
+        pgtbl = (pgtbl_t)PTE_TO_PA(*pte);
+    }
+    return NULL;
+}
+
+static void vm_map_range(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm, int max_level) {
+    assert(pgtbl != NULL, "vm_map: null page table");
+    uint64 remain = vm_round_len(va, len);
+    assert((pa & (PGSIZE - 1)) == 0, "vm_map: unaligned pa");
+    assert(pa < (1ul << 56) && remain <= (1ul << 56) - pa, "vm_map: pa out of range");
+    assert((perm & ~0x3FF) == 0, "vm_map: bad flags");
+    assert(!(perm & PTE_W) || (perm & PTE_R), "vm_map: W requires R");
+    assert((perm & (PTE_R | PTE_X)) != 0, "vm_map: not a leaf");
+    uint64 flags = (uint64)perm | PTE_V | PTE_A;
+    if (perm & PTE_W)
+        flags |= PTE_D;
+    while (remain != 0) {
+        int level = max_level;
+        pte_t *pte = NULL;
+        uint64 size;
+
+        for (;;) {
+            size = VM_LEVEL_SIZE(level);
+            if (size <= remain && ((va | pa) & (size - 1)) == 0) {
+                pte = vm_walk_level(pgtbl, va, level, true);
+                if (!(*pte & PTE_V) || PTE_LEAF(*pte))
+                    break;
+                assert(level > 0, "vm_map: bottom non-leaf");
+            }
+            assert(level > 0, "vm_map: cannot select page size");
+            level--;
+        }
+        *pte = PA_TO_PTE(pa) | flags;
+        va += size;
+        pa += size;
+        remain -= size;
+    }
+    vm_sync();
+}
+
+void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm) {
+    vm_map_range(pgtbl, va, pa, len, perm, 0);
+}
+
+void vm_mappages_huge(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm) {
+    vm_map_range(pgtbl, va, pa, len, perm, 2);
+}
+
+void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit) {
+    uint64 end = va + vm_round_len(va, len);
+    while (va < end) {
+        int level;
+        pte_t *pte = vm_lookup(pgtbl, va, &level);
+        assert(pte != NULL, "vm_unmap: not mapped");
+        uint64 size = VM_LEVEL_SIZE(level);
+        assert(!freeit || level == 0, "vm_unmap: huge backing must be freed by its owner");
+        if ((va & (size - 1)) != 0 || size > end - va) {
+            vm_split(pte, level);
+            continue;
+        }
+        uint64 pa = PTE_TO_PA(*pte);
+        *pte = 0;
+        vm_sync();
+        if (freeit)
+            pmem_free(pa, false);
+        va += size;
+    }
+}
+
+void kvm_init(void) {
+    uint64 data = (uint64)KERNEL_DATA;
+    uint64 begin = (uint64)ALLOC_BEGIN;
+    uint64 end = (uint64)ALLOC_END;
+    kernel_pgtbl = (pgtbl_t)pmem_alloc(true);
+    vm_mappages(kernel_pgtbl, UART_BASE, UART_BASE, PGSIZE, PTE_R | PTE_W);
+    vm_mappages(kernel_pgtbl, PLIC_BASE, PLIC_BASE, PLIC_SIZE, PTE_R | PTE_W);
+    vm_mappages_huge(kernel_pgtbl, KERNEL_BASE, KERNEL_BASE, data - KERNEL_BASE, PTE_R | PTE_X);
+    vm_mappages_huge(kernel_pgtbl, data, data, begin - data, PTE_R | PTE_W);
+    vm_mappages_huge(kernel_pgtbl, begin, begin, end - begin, PTE_R | PTE_W);
+}
+
+void kvm_inithart(void) {
+    vm_sync();
+    w_satp(MAKE_SATP(kernel_pgtbl));
+    vm_sync();
+}
+
+static void vm_print_level(pgtbl_t pgtbl, int level, uint64 base)
+{
+    for (int i = 0; i < 512; i++) {
+        pte_t pte = pgtbl[i];
+
+        if (!(pte & PTE_V))
+            continue;
+
+        uint64 va = base + (uint64)i * VM_LEVEL_SIZE(level);
+
+        if (PTE_LEAF(pte)) {
+            vm_check_leaf(pte, level);
+
+            printf("L%d leaf: va=%p pa=%p size=%x flags=%x\n",
+                   level, (void *)va, (void *)PTE_TO_PA(pte),
+                   VM_LEVEL_SIZE(level), (uint64)PTE_FLAGS(pte));
+        } else {
+            assert(level > 0, "vm_print: bottom non-leaf");
+
+            printf("L%d table: va=%p child=%p\n", level,
+                   (void *)va, (void *)PTE_TO_PA(pte));
+
+            vm_print_level((pgtbl_t)PTE_TO_PA(pte), level - 1, va);
+        }
+    }
+}
+
+void vm_print(pgtbl_t pgtbl)
+{
+    assert(pgtbl != NULL, "vm_print: null page table");
+    printf("root=%p\n", (void *)pgtbl);
+    vm_print_level(pgtbl, 2, 0);
+}
+
+static uint32 vm_count_level(pgtbl_t pgtbl, int level)
+{
+    uint32 count = 1; // 当前页表页本身。
+
+    for (int i = 0; i < 512; i++) {
+        pte_t pte = pgtbl[i];
+
+        if (!(pte & PTE_V) || PTE_LEAF(pte))
+            continue;
+
+        assert(level > 0, "vm_count: bottom non-leaf");
+
+        count += vm_count_level((pgtbl_t)PTE_TO_PA(pte), level - 1);
+    }
+
+    return count;
+}
+
+uint32 vm_count_pgtbl(pgtbl_t pgtbl)
+{
+    assert(pgtbl != NULL, "vm_count: null page table");
+    return vm_count_level(pgtbl, 2);
+}
+
+static void vm_free_level(pgtbl_t pgtbl, int level)
+{
+    for (int i = 0; i < 512; i++) {
+        pte_t pte = pgtbl[i];
+
+        if (!(pte & PTE_V))
+            continue;
+
+        assert(!PTE_LEAF(pte), "vm_freewalk: leaf remains");
+        assert(level > 0, "vm_freewalk: bottom non-leaf");
+
+        vm_free_level((pgtbl_t)PTE_TO_PA(pte), level - 1);
+        pgtbl[i] = 0;
+    }
+
+    pmem_free((uint64)pgtbl, true);
+}
+
+// 只能销毁已停用、没有有效叶子且未与其他根共享子表的页表。
+void vm_freewalk(pgtbl_t pgtbl)
+{
+    assert(pgtbl != NULL, "vm_freewalk: null page table");
+    vm_free_level(pgtbl, 2);
 }
