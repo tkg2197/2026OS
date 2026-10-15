@@ -1,0 +1,5 @@
+cpu 0 is booting!
+cpu 1 is booting!
+cpu 1 report: sum = 2000000
+cpu 0 report: sum = 2000000
+qemu-system-riscv64: terminating on signal 15 from pid 8635 (python3)

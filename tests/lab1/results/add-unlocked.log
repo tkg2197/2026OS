@@ -1,0 +1,8 @@
+ADD mode=unlocked round=1 final=1023956 expected=2000000
+ADD mode=unlocked round=2 final=892911 expected=2000000
+ADD mode=unlocked round=3 final=923135 expected=2000000
+ADD mode=unlocked round=4 final=898341 expected=2000000
+ADD mode=unlocked round=5 final=1010461 expected=2000000
+RACE OBSERVED: 5 of 5 rounds lost updates
+UNLOCKED ADD DEMO COMPLETE
+qemu-system-riscv64: terminating on signal 15 from pid 8635 (python3)

@@ -1,0 +1,4 @@
+INTR initially-off: depth 0 -> 2 -> 0; SIE stays 0
+INTR initially-on: depth 0 -> 2 -> 1 -> 0; restore SIE only at depth 0
+NESTED INTERRUPT/LOCK OWNERSHIP PASS
+qemu-system-riscv64: terminating on signal 15 from pid 8635 (python3)

@@ -1,0 +1,11 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>任务实验：无锁、细粒度锁与粗粒度锁的并行加法</title>
+<style>html{background:#f4f6f8}body{margin:0;padding:24px 28px;color:#172638;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box;min-height:360px}h1{font-size:24px;margin:0 0 8px}p{margin:5px 0 12px;line-height:1.5;color:#4c5a6c}.meta{font-size:12px}section{border:1px solid #cfd9e5;border-radius:5px;overflow:hidden;margin:10px 0;background:white}h2{font-size:14px;margin:0;padding:8px 12px;background:#e9eef5;border-bottom:1px solid #d5deea}small{font-size:11px;font-weight:400;color:#52657b}pre{margin:0;padding:10px 12px;font:13px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font:13px/1.35 Consolas,monospace;background:white}td,th{text-align:left;padding:5px 8px;border-bottom:1px solid #dce4ec}th{background:#e9eef5}.ok{color:#19633d;font-weight:600}</style>
+<h1>任务实验：无锁、细粒度锁与粗粒度锁的并行加法</h1><p class="meta">Lab1 · 2026-10-15 11:10:07 +0800 · QEMU 8.2.2 · GCC 13.3.0 · 128 MiB · 2 harts · BIOS none · TCG multi</p><p>每核每轮执行1,000,000次累加；先等待两核都完成再检查最终值。无锁结果随调度变化，加锁结果必须为2,000,000。</p><section><h2>add-unlocked <small>SHA256 cfd3d07bebe68472…</small></h2><pre>ADD mode=unlocked round=1 final=1023956 expected=2000000
+ADD mode=unlocked round=2 final=892911 expected=2000000
+ADD mode=unlocked round=3 final=923135 expected=2000000
+ADD mode=unlocked round=4 final=898341 expected=2000000
+ADD mode=unlocked round=5 final=1010461 expected=2000000
+RACE OBSERVED: 5 of 5 rounds lost updates
+UNLOCKED ADD DEMO COMPLETE</pre></section><section><h2>add-fine-lock <small>SHA256 b21df13d4ce77834…</small></h2><pre>ADD mode=fine-lock round=1 final=2000000 expected=2000000
+LOCKED ADD PASS: mode=fine lock_acquisitions=2000000</pre></section><section><h2>add-coarse-lock <small>SHA256 78e27f9d5a1518d8…</small></h2><pre>ADD mode=coarse-lock round=1 final=2000000 expected=2000000
+LOCKED ADD PASS: mode=coarse lock_acquisitions=2</pre></section></html>

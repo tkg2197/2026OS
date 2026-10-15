@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>补充测试：printf 格式、空指针与整数边界</title>
+<style>html{background:#f4f6f8}body{margin:0;padding:24px 28px;color:#172638;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box;min-height:360px}h1{font-size:24px;margin:0 0 8px}p{margin:5px 0 12px;line-height:1.5;color:#4c5a6c}.meta{font-size:12px}section{border:1px solid #cfd9e5;border-radius:5px;overflow:hidden;margin:10px 0;background:white}h2{font-size:14px;margin:0;padding:8px 12px;background:#e9eef5;border-bottom:1px solid #d5deea}small{font-size:11px;font-weight:400;color:#52657b}pre{margin:0;padding:10px 12px;font:13px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font:13px/1.35 Consolas,monospace;background:white}td,th{text-align:left;padding:5px 8px;border-bottom:1px solid #dce4ec}th{background:#e9eef5}.ok{color:#19633d;font-weight:600}</style>
+<h1>补充测试：printf 格式、空指针与整数边界</h1><p class="meta">Lab1 · 2026-10-15 11:10:07 +0800 · QEMU 8.2.2 · GCC 13.3.0 · 128 MiB · 2 harts · BIOS none · TCG multi</p><p>按本Lab1自定义接口验证：%p读取uint32；%x读取uint64并输出0x加16位十六进制；INT_MIN结果只代表当前构建实测。</p><section><h2>printf-format <small>SHA256 695743b186866767…</small></h2><pre>FMT signed: 0 1 -1 2147483647 -2147483648
+FMT p32: 0 80000000 ffffffff
+FMT x64: 0x123456789abcdef0 0xffffffffffffffff
+FMT text: Z hello (null) %
+FMT unknown: %q
+FMT trailing: %
+PRINTF FORMAT PASS</pre></section></html>
