@@ -1,0 +1,38 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>任务要求：页表修改前后的实际输出</title>
+<style>html{background:#f3f5f7}body{margin:0;padding:24px 28px;color:#182231;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box}
+h1{font-size:23px;margin:0 0 8px}p{margin:5px 0 10px;line-height:1.5;color:#435166}h2{font-size:14px;margin:0;padding:8px 12px;background:#e8edf4;border-bottom:1px solid #d2dce8}small{font-weight:400;font-size:11px;color:#52657b}
+section{border:1px solid #d2dce8;border-radius:5px;overflow:hidden;margin:10px 0;background:white}pre{margin:0;padding:10px 12px;font:12px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#152a40}
+.meta{font-size:12px}.ok{color:#17663d;font-weight:600}table{width:100%;border-collapse:collapse;font:12px/1.25 Consolas,monospace;background:white}td,th{text-align:left;padding:4px 8px;border-bottom:1px solid #e1e7ee}th{background:#e8edf4}</style>
+<h1>任务要求：页表修改前后的实际输出</h1><p class="meta">Lab2 · 2026-10-15 10:36:03 +0800 · QEMU 8.2.2 · RISC-V GCC 13.3.0 · 130 MiB · 2 harts · TCG multi</p>
+<p>5 个有效叶子变为 3 个；VA=0 的 flags 从 0x43 变为 0xc7；两个 hart 均已启用分页。</p><section><h2>official-vm-print <small>SHA256 fbed0f8bb29d0291…</small></h2><pre>OFFICIAL VM test-1: satp=0x8000000000080226
+
+test-1 BEFORE
+root=0x000000008024b000
+L2 table: va=0x0000000000000000 child=0x000000008024c000
+L1 table: va=0x0000000000000000 child=0x000000008024d000
+L0 leaf: va=0x0000000000000000 pa=0x00000000881fe000 size=0x0000000000001000 flags=0x0000000000000043
+L0 leaf: va=0x000000000000a000 pa=0x00000000881ff000 size=0x0000000000001000 flags=0x00000000000000c7
+L1 table: va=0x0000000000200000 child=0x000000008024e000
+L0 leaf: va=0x0000000000200000 pa=0x00000000881f6000 size=0x0000000000001000 flags=0x000000000000004b
+L2 table: va=0x0000000040000000 child=0x000000008024f000
+L1 table: va=0x0000000040000000 child=0x0000000080250000
+L0 leaf: va=0x0000000040000000 pa=0x00000000881f7000 size=0x0000000000001000 flags=0x000000000000004b
+L2 table: va=0x0000003fc0000000 child=0x0000000080251000
+L1 table: va=0x0000003fffe00000 child=0x0000000080252000
+L0 leaf: va=0x0000003ffffff000 pa=0x00000000881f8000 size=0x0000000000001000 flags=0x00000000000000c7
+
+test-2 AFTER
+root=0x000000008024b000
+L2 table: va=0x0000000000000000 child=0x000000008024c000
+L1 table: va=0x0000000000000000 child=0x000000008024d000
+L0 leaf: va=0x0000000000000000 pa=0x00000000881fe000 size=0x0000000000001000 flags=0x00000000000000c7
+L1 table: va=0x0000000000200000 child=0x000000008024e000
+L2 table: va=0x0000000040000000 child=0x000000008024f000
+L1 table: va=0x0000000040000000 child=0x0000000080250000
+L0 leaf: va=0x0000000040000000 pa=0x00000000881f7000 size=0x0000000000001000 flags=0x000000000000004b
+L2 table: va=0x0000003fc0000000 child=0x0000000080251000
+L1 table: va=0x0000003fffe00000 child=0x0000000080252000
+L0 leaf: va=0x0000003ffffff000 pa=0x00000000881f8000 size=0x0000000000001000 flags=0x00000000000000c7
+OFFICIAL VM PRINT PASS: leaves 5 -&gt; 3; all resources restored
+cpu 1: paging enabled, satp=0x8000000000080226
+OFFICIAL VM TWO-HART PAGING PASS</pre></section></html>

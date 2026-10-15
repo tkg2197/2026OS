@@ -1,0 +1,242 @@
+[
+  {
+    "name": "scoped-entry-smoke",
+    "status": "PASS",
+    "expected_panic": false,
+    "expected": "buddy two-core test passed",
+    "seconds": 0.733,
+    "log_bytes": 2458
+  },
+  {
+    "name": "official-pmem-parallel",
+    "status": "PASS",
+    "expected_panic": false,
+    "expected": "OFFICIAL PMEM PARALLEL PASS",
+    "seconds": 0.415,
+    "log_bytes": 51601
+  },
+  {
+    "name": "official-exhaust-kernel",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy alloc: no suitable block",
+    "seconds": 0.172,
+    "log_bytes": 2413
+  },
+  {
+    "name": "official-exhaust-user",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy alloc: no suitable block",
+    "seconds": 0.43,
+    "log_bytes": 2413
+  },
+  {
+    "name": "official-pmem-lifecycle",
+    "status": "PASS",
+    "expected_panic": false,
+    "expected": "OFFICIAL PMEM LIFECYCLE PASS",
+    "seconds": 0.185,
+    "log_bytes": 3707
+  },
+  {
+    "name": "official-vm-print",
+    "status": "PASS",
+    "expected_panic": false,
+    "expected": "OFFICIAL VM TWO-HART PAGING PASS",
+    "seconds": 0.191,
+    "log_bytes": 4153
+  },
+  {
+    "name": "official-vm-assert",
+    "status": "PASS",
+    "expected_panic": false,
+    "expected": "OFFICIAL VM TWO-HART PAGING PASS",
+    "seconds": 0.181,
+    "log_bytes": 2415
+  },
+  {
+    "name": "extra-buddy",
+    "status": "PASS",
+    "expected_panic": false,
+    "expected": "12 two-hart rounds, no overlaps, contents and capacity",
+    "seconds": 2.86,
+    "log_bytes": 2613
+  },
+  {
+    "name": "extra-heap",
+    "status": "PASS",
+    "expected_panic": false,
+    "expected": "HEAP ALL TESTS PASSED",
+    "seconds": 0.4,
+    "log_bytes": 3004
+  },
+  {
+    "name": "extra-huge",
+    "status": "PASS",
+    "expected_panic": false,
+    "expected": "HUGE ALL TESTS PASSED",
+    "seconds": 0.348,
+    "log_bytes": 3023
+  },
+  {
+    "name": "bad-buddy-1",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy alloc: bad order",
+    "seconds": 0.215,
+    "log_bytes": 2306
+  },
+  {
+    "name": "bad-buddy-2",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy free: unaligned page",
+    "seconds": 0.318,
+    "log_bytes": 2310
+  },
+  {
+    "name": "bad-buddy-3",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy free: wrong region",
+    "seconds": 0.307,
+    "log_bytes": 2308
+  },
+  {
+    "name": "bad-buddy-4",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy free: invalid block or order",
+    "seconds": 0.299,
+    "log_bytes": 2318
+  },
+  {
+    "name": "bad-buddy-5",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy free: invalid block or order",
+    "seconds": 0.232,
+    "log_bytes": 2318
+  },
+  {
+    "name": "bad-buddy-6",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy free: invalid block or order",
+    "seconds": 0.228,
+    "log_bytes": 2318
+  },
+  {
+    "name": "bad-buddy-7",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy alloc: no suitable block",
+    "seconds": 0.228,
+    "log_bytes": 2314
+  },
+  {
+    "name": "bad-buddy-8",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy alloc: no suitable block",
+    "seconds": 0.216,
+    "log_bytes": 2314
+  },
+  {
+    "name": "bad-buddy-9",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "buddy alloc: no suitable block",
+    "seconds": 0.489,
+    "log_bytes": 2314
+  },
+  {
+    "name": "bad-heap-1",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "heap free: block already free",
+    "seconds": 0.182,
+    "log_bytes": 2313
+  },
+  {
+    "name": "bad-heap-2",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "heap free: address is not a block start",
+    "seconds": 0.273,
+    "log_bytes": 2323
+  },
+  {
+    "name": "bad-heap-3",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "heap free: address outside kernel page pool",
+    "seconds": 0.175,
+    "log_bytes": 2327
+  },
+  {
+    "name": "bad-huge-1",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "vm_unmap: huge backing must be freed by its owner",
+    "seconds": 0.283,
+    "log_bytes": 2333
+  },
+  {
+    "name": "bad-huge-2",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "vm_freewalk: leaf remains",
+    "seconds": 0.165,
+    "log_bytes": 2309
+  },
+  {
+    "name": "bad-vm-1",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "vm_map: W requires R",
+    "seconds": 0.176,
+    "log_bytes": 2345
+  },
+  {
+    "name": "bad-vm-2",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "vm: unaligned va",
+    "seconds": 0.162,
+    "log_bytes": 2341
+  },
+  {
+    "name": "bad-vm-3",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "vm: bad range",
+    "seconds": 0.204,
+    "log_bytes": 2338
+  },
+  {
+    "name": "bad-vm-4",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "vm_unmap: not mapped",
+    "seconds": 0.169,
+    "log_bytes": 2345
+  },
+  {
+    "name": "bad-vm-5",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "vm_walk: null page table",
+    "seconds": 0.165,
+    "log_bytes": 2349
+  },
+  {
+    "name": "bad-vm-6",
+    "status": "PASS",
+    "expected_panic": true,
+    "expected": "vm: bad range",
+    "seconds": 0.172,
+    "log_bytes": 2338
+  }
+]

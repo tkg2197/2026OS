@@ -1,0 +1,23 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>补充测试：大页、局部拆分与真实 MMU 访问</title>
+<style>html{background:#f3f5f7}body{margin:0;padding:24px 28px;color:#182231;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box}
+h1{font-size:23px;margin:0 0 8px}p{margin:5px 0 10px;line-height:1.5;color:#435166}h2{font-size:14px;margin:0;padding:8px 12px;background:#e8edf4;border-bottom:1px solid #d2dce8}small{font-weight:400;font-size:11px;color:#52657b}
+section{border:1px solid #d2dce8;border-radius:5px;overflow:hidden;margin:10px 0;background:white}pre{margin:0;padding:10px 12px;font:12px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#152a40}
+.meta{font-size:12px}.ok{color:#17663d;font-weight:600}table{width:100%;border-collapse:collapse;font:12px/1.25 Consolas,monospace;background:white}td,th{text-align:left;padding:4px 8px;border-bottom:1px solid #e1e7ee}th{background:#e8edf4}</style>
+<h1>补充测试：大页、局部拆分与真实 MMU 访问</h1><p class="meta">Lab2 · 2026-10-15 10:36:03 +0800 · QEMU 8.2.2 · RISC-V GCC 13.3.0 · 130 MiB · 2 harts · TCG multi</p>
+<p>2 MiB 测试包含真实 satp 切换和读写；1 GiB 测试只验证页表结构，不访问超出物理 RAM 的映射。</p><section><h2>extra-huge <small>SHA256 498be278624ff7c2…</small></h2><pre>buddy single-core test passed
+root=0x000000008024e000
+L2 table: va=0x0000000040000000 child=0x0000000080251000
+L1 leaf: va=0x0000000040000000 pa=0x0000000080000000 size=0x0000000000200000 flags=0x00000000000000c7
+huge 2MiB table-saving test passed: 3 -&gt; 2 pages
+root=0x000000008024d000
+L2 leaf: va=0x0000000040000000 pa=0x0000000080000000 size=0x0000000040000000 flags=0x00000000000000c7
+huge 1GiB/nested-split test passed
+huge tail/alignment test passed
+huge remap/4KiB-freeit test passed
+huge active split/remap/TLB test passed
+huge hardware satp/alias test passed
+heap compatibility smoke test passed
+cpu 0: paging enabled, satp=0x8000000000080228
+cpu 1: paging enabled, satp=0x8000000000080228
+buddy two-core test passed
+HUGE ALL TESTS PASSED</pre></section></html>

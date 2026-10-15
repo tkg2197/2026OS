@@ -1,0 +1,35 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>任务要求：用户页申请、回收、再分配清零</title>
+<style>html{background:#f3f5f7}body{margin:0;padding:24px 28px;color:#182231;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box}
+h1{font-size:23px;margin:0 0 8px}p{margin:5px 0 10px;line-height:1.5;color:#435166}h2{font-size:14px;margin:0;padding:8px 12px;background:#e8edf4;border-bottom:1px solid #d2dce8}small{font-weight:400;font-size:11px;color:#52657b}
+section{border:1px solid #d2dce8;border-radius:5px;overflow:hidden;margin:10px 0;background:white}pre{margin:0;padding:10px 12px;font:12px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#152a40}
+.meta{font-size:12px}.ok{color:#17663d;font-weight:600}table{width:100%;border-collapse:collapse;font:12px/1.25 Consolas,monospace;background:white}td,th{text-align:left;padding:4px 8px;border-bottom:1px solid #e1e7ee}th{background:#e8edf4}</style>
+<h1>任务要求：用户页申请、回收、再分配清零</h1><p class="meta">Lab2 · 2026-10-15 10:36:03 +0800 · QEMU 8.2.2 · RISC-V GCC 13.3.0 · 130 MiB · 2 harts · TCG multi</p>
+<p>日志正文为 QEMU 实际串口输出；已省略 OpenSBI 启动横幅和测试结束后的进程终止提示。</p><section><h2>official-pmem-lifecycle <small>SHA256 5f143d21ba889742…</small></h2><pre>=== test_case_2: Phase 1 - Allocate User Pages ===
+Allocated user page[0] @ 0x00000000881fe000
+Allocated user page[1] @ 0x00000000881ff000
+Allocated user page[2] @ 0x00000000881f6000
+Allocated user page[3] @ 0x00000000881f7000
+Allocated user page[4] @ 0x00000000881f8000
+Allocated user page[5] @ 0x00000000881f9000
+Allocated user page[6] @ 0x00000000881fa000
+Allocated user page[7] @ 0x00000000881fb000
+Allocated user page[8] @ 0x00000000881fc000
+Allocated user page[9] @ 0x00000000881fd000
+=== Phase 2 - Pre-free Check ===
+Expected allocable: 31696, Actual: 31696
+=== Phase 3 - Free Pages ===
+=== Phase 4 - Post-free Check ===
+Expected allocable: 31706, Actual: 31706
+=== Phase 5 - Reallocate &amp; Verify Zero ===
+Reallocated page[0] @ 0x00000000881fe000: Zero verification passed
+Reallocated page[1] @ 0x00000000881ff000: Zero verification passed
+Reallocated page[2] @ 0x00000000881f6000: Zero verification passed
+Reallocated page[3] @ 0x00000000881f7000: Zero verification passed
+Reallocated page[4] @ 0x00000000881f8000: Zero verification passed
+Reallocated page[5] @ 0x00000000881f9000: Zero verification passed
+Reallocated page[6] @ 0x00000000881fa000: Zero verification passed
+Reallocated page[7] @ 0x00000000881fb000: Zero verification passed
+Reallocated page[8] @ 0x00000000881fc000: Zero verification passed
+Reallocated page[9] @ 0x00000000881fd000: Zero verification passed
+test_case_2 passed!
+OFFICIAL PMEM LIFECYCLE PASS</pre></section></html>

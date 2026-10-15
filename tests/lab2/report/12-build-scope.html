@@ -1,0 +1,28 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>构建范围及当前工程的实际限制</title>
+<style>html{background:#f3f5f7}body{margin:0;padding:24px 28px;color:#182231;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box}
+h1{font-size:23px;margin:0 0 8px}p{margin:5px 0 10px;line-height:1.5;color:#435166}h2{font-size:14px;margin:0;padding:8px 12px;background:#e8edf4;border-bottom:1px solid #d2dce8}small{font-weight:400;font-size:11px;color:#52657b}
+section{border:1px solid #d2dce8;border-radius:5px;overflow:hidden;margin:10px 0;background:white}pre{margin:0;padding:10px 12px;font:12px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#152a40}
+.meta{font-size:12px}.ok{color:#17663d;font-weight:600}table{width:100%;border-collapse:collapse;font:12px/1.25 Consolas,monospace;background:white}td,th{text-align:left;padding:4px 8px;border-bottom:1px solid #e1e7ee}th{background:#e8edf4}</style>
+<h1>构建范围及当前工程的实际限制</h1><p class="meta">Lab2 · 2026-10-15 10:36:03 +0800 · QEMU 8.2.2 · RISC-V GCC 13.3.0 · 130 MiB · 2 harts · TCG multi</p>
+<p>未改动原工程源码。测试副本排除后续实验 proc/timer/trap C 文件；保留当前链接脚本需要的 trampoline 汇编。</p><section><h2>完整工程 make -B build：exit=2</h2><pre>src/kernel/proc/proc.c: In function ‘proc_pgtbl_init’:
+src/kernel/proc/proc.c:25:1: error: control reaches end of non-void function [-Werror=return-type]
+   25 | }
+      | ^
+src/kernel/proc/proc.c: At top level:
+src/kernel/proc/proc.c:18:15: error: ‘proczero’ defined but not used [-Werror=unused-variable]
+   18 | static proc_t proczero;
+      |               ^~~~~~~~
+cc1: all warnings being treated as errors
+make: *** [Makefile:98: target/kernel/proc/proc.o] Error 1</pre></section><section><h2>本次 Lab2 构建范围</h2><pre>target/kernel/main.o
+target/kernel/trap/trampoline.o
+target/kernel/arch/sbi.o
+target/kernel/boot/entry.o
+target/kernel/boot/start.o
+target/kernel/lib/cpu.o
+target/kernel/lib/print.o
+target/kernel/lib/uart.o
+target/kernel/lib/utils.o
+target/kernel/lock/spinlock.o
+target/kernel/mem/heap.o
+target/kernel/mem/kvm.o
+target/kernel/mem/pmem.o</pre></section></html>

@@ -1,0 +1,13 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>补充测试：页表参数的 6 个错误路径</title>
+<style>html{background:#f3f5f7}body{margin:0;padding:24px 28px;color:#182231;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box}
+h1{font-size:23px;margin:0 0 8px}p{margin:5px 0 10px;line-height:1.5;color:#435166}h2{font-size:14px;margin:0;padding:8px 12px;background:#e8edf4;border-bottom:1px solid #d2dce8}small{font-weight:400;font-size:11px;color:#52657b}
+section{border:1px solid #d2dce8;border-radius:5px;overflow:hidden;margin:10px 0;background:white}pre{margin:0;padding:10px 12px;font:12px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#152a40}
+.meta{font-size:12px}.ok{color:#17663d;font-weight:600}table{width:100%;border-collapse:collapse;font:12px/1.25 Consolas,monospace;background:white}td,th{text-align:left;padding:4px 8px;border-bottom:1px solid #e1e7ee}th{background:#e8edf4}</style>
+<h1>补充测试：页表参数的 6 个错误路径</h1><p class="meta">Lab2 · 2026-10-15 10:36:03 +0800 · QEMU 8.2.2 · RISC-V GCC 13.3.0 · 130 MiB · 2 harts · TCG multi</p>
+<p>每个框来自一次独立 QEMU 启动；展示触发的实际 panic 行。指定错误被拦截即为该用例通过。</p><section><h2>bad-vm-1 <small>SHA256 cc27b13fad3aea4f…</small></h2><pre>VM BAD CASE 1: next operation must panic
+panic! vm_map: W requires R</pre></section><section><h2>bad-vm-2 <small>SHA256 ebdd64153959bee7…</small></h2><pre>VM BAD CASE 2: next operation must panic
+panic! vm: unaligned va</pre></section><section><h2>bad-vm-3 <small>SHA256 ac52664010e834c5…</small></h2><pre>VM BAD CASE 3: next operation must panic
+panic! vm: bad range</pre></section><section><h2>bad-vm-4 <small>SHA256 67d0f5065e660c67…</small></h2><pre>VM BAD CASE 4: next operation must panic
+panic! vm_unmap: not mapped</pre></section><section><h2>bad-vm-5 <small>SHA256 88627b432ee54652…</small></h2><pre>VM BAD CASE 5: next operation must panic
+panic! vm_walk: null page table</pre></section><section><h2>bad-vm-6 <small>SHA256 95793d6c4fecb582…</small></h2><pre>VM BAD CASE 6: next operation must panic
+panic! vm: bad range</pre></section></html>

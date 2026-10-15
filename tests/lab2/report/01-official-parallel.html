@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>任务要求：双核申请并释放全部 1024 页</title>
+<style>html{background:#f3f5f7}body{margin:0;padding:24px 28px;color:#182231;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box}
+h1{font-size:23px;margin:0 0 8px}p{margin:5px 0 10px;line-height:1.5;color:#435166}h2{font-size:14px;margin:0;padding:8px 12px;background:#e8edf4;border-bottom:1px solid #d2dce8}small{font-weight:400;font-size:11px;color:#52657b}
+section{border:1px solid #d2dce8;border-radius:5px;overflow:hidden;margin:10px 0;background:white}pre{margin:0;padding:10px 12px;font:12px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:#152a40}
+.meta{font-size:12px}.ok{color:#17663d;font-weight:600}table{width:100%;border-collapse:collapse;font:12px/1.25 Consolas,monospace;background:white}td,th{text-align:left;padding:4px 8px;border-bottom:1px solid #e1e7ee}th{background:#e8edf4}</style>
+<h1>任务要求：双核申请并释放全部 1024 页</h1><p class="meta">Lab2 · 2026-10-15 10:36:03 +0800 · QEMU 8.2.2 · RISC-V GCC 13.3.0 · 130 MiB · 2 harts · TCG multi</p>
+<p>截图展示原始日志的首尾片段。程序及运行器同时核验：每核 512 页、1024 个地址无重复、内容正确、容量恢复。</p><section><h2>official-pmem-parallel <small>SHA256 1838222ad42551a1…</small></h2><pre>OFFICIAL PMEM test-1: two CPUs x 512 pages, paging OFF
+cpu 0 mem = 0x0000000080228000, data = 16843009
+cpu 1 mem = 0x0000000080229000, data = 16843009
+cpu 0 mem = 0x000000008022a000, data = 16843009
+cpu 1 mem = 0x000000008022b000, data = 16843009
+cpu 0 mem = 0x000000008022c000, data = 16843009
+cpu 1 mem = 0x000000008022d000, data = 16843009
+cpu 0 mem = 0x000000008022e000, data = 16843009
+cpu 1 mem = 0x000000008022f000, data = 16843009
+[… 省略中间 1011 行；完整输出见原始 .log …]
+cpu 1 mem = 0x0000000080623000, data = 16843009
+cpu 0 mem = 0x0000000080624000, data = 16843009
+cpu 1 mem = 0x0000000080625000, data = 16843009
+cpu 0 mem = 0x0000000080626000, data = 16843009
+cpu 1 mem = 0x0000000080627000, data = 16843009
+cpu 0 alloc over
+cpu 1 alloc over
+cpu 0 free over
+cpu 1 free over
+OFFICIAL PMEM PARALLEL PASS: unique=1024, free=1024</pre></section></html>

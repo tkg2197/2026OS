@@ -3,4 +3,5 @@
 #include "method.h"
 #include "../lock/mod.h"
 #include "../lib/mod.h"
+#include "../trap/type.h"
 #include "../trap/mod.h"
