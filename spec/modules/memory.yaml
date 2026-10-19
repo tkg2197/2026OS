@@ -10,4 +10,4 @@ rules:
 - 内核页表为 UART_BASE 的一页和 PLIC_BASE 开始的 PLIC_SIZE 范围建立 RW 映射。
 - OpenSBI 拥有的 CLINT 不在 S-mode 直接访问。
 - 内核代码为 RX，数据和可分配物理内存为 RW；不得加入 PTE_U。
-- 实现接口与 Lab2 验证记录见 README.lab2.md；本实验不修改内存分配器和页表源码。
+- 继承的内存接口见 src/kernel/mem/method.h，Lab2 历史验证记录保留在 tests/lab2/；本实验不修改内存分配器和页表源码。
