@@ -79,10 +79,12 @@ $(TARGET):
 
 # 编译规则：将汇编文件(.S)编译为目标文件(.o)
 $(TARGET)/kernel/%.o: $(KernelPath)/%.S
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # 编译规则：将C文件(.c)编译为目标文件(.o)
 $(TARGET)/kernel/%.o: $(KernelPath)/%.c
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # 链接生成内核ELF文件

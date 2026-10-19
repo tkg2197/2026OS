@@ -24,8 +24,14 @@ void uart_init(void)
 	// 清零和使能FIFO模式
 	WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);
 
-	// 使能输出队列和接收队列的中断
-	WriteReg(IER, IER_TX_ENABLE | IER_RX_ENABLE);
+	// 接收中断等PLIC和stvec准备好后单独启用；轮询发送不需要TX中断。
+	WriteReg(IER, 0);
+}
+
+// 全局调用一次，调用前PLIC和监督者trap入口必须已就绪。
+void uart_enable_rx_interrupt(void)
+{
+    WriteReg(IER, IER_RX_ENABLE);
 }
 
 // 单个字符输出
@@ -67,6 +73,11 @@ void uart_intr(void)
 		int c = uart_getc_sync();
 		if (c == -1)
 		break;
-		uart_putc_sync(c);
+        if (c == '\b' || c == 0x7f)
+            printf("\b \b");
+        else if (c == '\r' || c == '\n')
+            printf("\r\n");
+        else
+            printf("%c", c);
 	}
 }
