@@ -1,0 +1,20 @@
+module: user/initcode
+owns:
+- src/user/initcode.c
+- src/user/sys.h
+- src/user/syscall_arch.h
+- src/user/syscall_num.h
+rules:
+- 用户调用通过 ecall，a7 为调用号、a0..a5 为参数、a0 为结果；内联汇编声明内存影响。
+- SYS_helloworld=0；main 明确位于 USER_BASE，不能依赖编译器函数排列。
+functions:
+  long helloworld(void):
+    effects:
+    - 发起系统调用。
+    post:
+    - 经 ecall 发起 SYS_helloworld，返回内核结果。
+  int main(void):
+    effects:
+    - 发起两次系统调用。
+    post:
+    - 连续两次调用 helloworld 后保持用户态循环，供时钟和 UART 中断恢复；两次调用均返回0，不返回。

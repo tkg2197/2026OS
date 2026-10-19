@@ -17,6 +17,7 @@ rules:
 - OpenSBI在到期时向目标hart交付S-mode时钟中断；处理程序必须再次调用sbi_set_timer(r_time()+INTERVAL)，不使用M-mode timer_vector或SSIP转发。
 - PLIC claim返回非零IRQ后，同一hart处理完毕恰好complete一次；零表示无可领取源，不complete。
 - 内核trap进入C处理函数时SSTATUS.SIE关闭；kernel_vector恢复其保存的通用寄存器并以sret返回。
+- 用户trap入口由usertrap模块管理；用户态收到时钟或外部中断时复用本模块的设备处理逻辑。
 functions:
   "void timer_init(void);":
     pre:

@@ -28,10 +28,10 @@ functions:
     - main开始时仍在S-mode和bare地址转换状态，tp稳定保存当前hart ID；start不执行mret且不返回。
   void main(void):
     effects:
-    - hart0初始化打印、物理内存、内核页表、全局trap状态，发布initialized，并通过sbi_hart_start启动其余hart。
+    - hart0初始化打印、物理内存、内核页表、全局trap和进程状态，发布initialized，并通过sbi_hart_start启动其余hart。
     - 每个hart安装内核页表、本地PLIC与stvec环境，使用SBI TIME设置首次定时事件并开启中断。
     post:
     - hart0在共享初始化完成前不启动次级hart；每次HSM调用均检查sbi_ret_t.error。
-    - 各hart完成本地初始化后停在可处理中断的wfi循环。
-    - 每个hart恰好输出一次带OpenSBI的启动提示；共享初始化仅由hart0执行。
+    - hart0完成本地执行环境后调用proc_make_first；其他hart等待initialized后完成本地初始化并停在可处理中断的wfi循环。
+    - 每个hart恰好输出一次带OpenSBI的启动提示；共享初始化和首进程创建仅由hart0执行。
     - 主流程不返回。

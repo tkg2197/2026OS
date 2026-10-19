@@ -17,14 +17,14 @@ state:
   scause: 最近一次监督者trap的中断标志及原因。
   stval: 最近一次监督者异常附加值。
   time: OpenSBI允许S-mode读取的平台递增时间计数器。
-  tp: 内核期间的当前hart ID；初值来自OpenSBI传入_entry的a0。
+  tp: 内核期间的当前hart ID；初值来自OpenSBI传入_entry的a0，用户期间由用户上下文管理。
 rules:
 - NCPU固定为2，QEMU的CPUNUM必须与之相等；OpenSBI传入的hart ID必须落在0..NCPU-1。
 - 内核不得读写mstatus、mepc、mhartid、medeleg、mideleg、mie、mtvec、mscratch、mcounteren、pmpcfg或pmpaddr，也不得直接访问CLINT。
 - S-mode CSR接口只修改所命名的寄存器；只读位与WARL字段遵循硬件约束，调用者提供合法编码。
 - w_satp不替调用者执行sfence.vma；修改地址空间和TLB失效必须由上层协议配对。
 - SBI ecall使用a7传EID、a6传FID、a0..a5传参数，并从a0/a1取得error/value；调用者必须处理扩展可能返回的错误。
-- 内核tp始终保存范围内hart ID。
+- 内核tp保存范围内hart ID，用户进入内核由trampoline恢复，退出时恢复用户tp。
 functions:
   "sbi_ret_t sbi_ecall(uint64 eid, uint64 fid, uint64 arg0, uint64 arg1, uint64 arg2, uint64 arg3, uint64 arg4, uint64 arg5);":
     effects:

@@ -1,2 +1,4 @@
 target
 .DS_Store
+# Generated from the user program binary.
+src/user/initcode.h

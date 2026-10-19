@@ -1,13 +1,111 @@
 module: kernel/memory
 owns:
 - src/kernel/mem/pmem.c
-- src/kernel/mem/heap.c
 - src/kernel/mem/kvm.c
 - src/kernel/mem/type.h
 - src/kernel/mem/method.h
+state:
+  physical_layout: QEMU物理内存为[0x80000000, 0x88200000)；OpenSBI占用前2MiB，KERNEL_BASE为0x80200000，可分配区由ALLOC_BEGIN和ALLOC_END界定。
+  kern_region: 从页对齐的ALLOC_BEGIN开始、长度为KERN_PAGES个PGSIZE的区域，提供页表与内核页；当前KERN_PAGES为1024。
+  user_region: 紧接kern_region直到页对齐的ALLOC_END，提供用户页。
+  page_node_t.next: 空闲页开头的链表指针，页面分配后由调用者占用。
+  kernel_pgtbl: 成功构造后发布的内核 Sv39 根页表。
+  pgtbl_t: 每个页表页有 512 个 64 位 PTE，三级覆盖低半区 [0, VA_MAX)，VA_MAX 为 2^38。
 rules:
-- 继承 lab2 分支已完成的 buddy、内核堆和混合大小 Sv39 页表实现。
-- 内核页表为 UART_BASE 的一页和 PLIC_BASE 开始的 PLIC_SIZE 范围建立 RW 映射。
-- OpenSBI 拥有的 CLINT 不在 S-mode 直接访问。
-- 内核代码为 RX，数据和可分配物理内存为 RW；不得加入 PTE_U。
-- 实现接口与 Lab2 验证记录见 README.lab2.md；本实验不修改内存分配器和页表源码。
+- PGSIZE为4096；物理分配区域互不重叠，不含OpenSBI或内核镜像，allocable等于对应空闲链表的页面数。
+- 每个物理页只处于一个空闲链表或由一个所有者持有；链表与计数只在区域锁下修改。
+- 页表中间项只有 PTE_V，叶项至少有 R 或 X；W 必须同时有 R；PA 与页表页均页对齐。
+- 页表修改由调用者串行化；本模块不自动执行其他 hart 的 TLB shootdown；撤销活动映射后使用或归还物理页之前须完成所需失效。
+- 运行时分配或映射失败返回定义的失败值；回收本次创建的中间页和临时资源，不改变已发布的映射或泄漏页。
+- TRAMPOLINE 为 VA_MAX-PAGE_SIZE，TRAPFRAME 为 TRAMPOLINE-PAGE_SIZE；KSTACK(i) 为 TRAMPOLINE-(i+1)*2*PAGE_SIZE，每个内核栈之上的保护页保持未映射。
+functions:
+  bool check_inkernel(uint64 p);:
+    pre:
+    - 物理分配区域已初始化。
+    effects: []
+    post:
+    - 当且仅当 kern_region.begin <= p < kern_region.end 返回 true；不要求 p 页对齐，不表示整个内核地址范围。
+  void pmem_init(void);:
+    pre:
+    - 单次初始化且尚无并发分配；链接符号 ALLOC_BEGIN、ALLOC_END 定义可分配物理内存边界。
+    effects:
+    - 向内页对齐ALLOC_BEGIN和ALLOC_END，把前KERN_PAGES页划为内核区、其余页划为用户区，并初始化各区锁、空闲链表及计数。
+    post:
+    - 每个可分配页恰好登记一次；空闲页用字节 1 填充，页头保存 next。
+    - 无法形成两个非空区域属于必要启动条件失败并 panic。
+  void *pmem_alloc(bool in_kernel);:
+    pre:
+    - 物理分配区域已初始化。
+    effects:
+    - 从指定区域锁保护的链表移除一页并减少 allocable，分配后清零整页。
+    post:
+    - 成功返回该区域内页对齐且独占的页地址；true 选择内核区，false 选择用户区。
+    - 空闲链表为空返回 0；锁已释放，区域与计数不变，不 panic。
+  void pmem_free(uint64 page, bool in_kernel);:
+    pre:
+    - page 是指定区域中调用者独占的已分配页，已不被任何活动映射或其他对象使用。
+    effects:
+    - 在重新发布为空闲页前用字节 1 填充，链接到区域空闲链表并增加 allocable。
+    post:
+    - 页归还指定区域且锁正常释放；错区、未对齐、越界或重复归还属于所有权不变量破坏并 panic。
+    - 重复归还必须在破坏已有空闲链表之前被发现。
+  pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc);:
+    pre:
+    - 非 NULL 页表指向有效 Sv39 根，调用者串行化页表访问。
+    effects:
+    - 按 VPN2、VPN1、VPN0 遍历；alloc 为 true 时为缺失的中间层分配清零的内核页并建立非叶项。
+    post:
+    - 成功返回 va 对应最低层 PTE 地址，叶项尚未映射也可成功。
+    - NULL 根、va >= VA_MAX、alloc 为 false 且路径缺失，或资源不足返回 NULL。
+    - 资源不足时解除并回收本次新建中间页，原有页表项不变；遇上层叶项属于本模块仅支持 4 KiB 页的不变量破坏并 panic。
+  int vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm);:
+    pre:
+    - 非 NULL 页表有效且由调用者独占修改；成功映射后调用者管理物理页的所有权与寿命。
+    effects:
+    - 把 len 向上取整到页面，为连续虚拟页建立连续物理叶项；叶项为 PA_TO_PTE(pa+offset) | perm | PTE_V。
+    post:
+    - 成功返回 0，覆盖 [va, va+PGROUNDUP(len))；不会替换已有有效映射。
+    - NULL 根、未对齐 va 或 pa、零长度、地址范围或向上取整溢出、物理地址不可编码、非法权限、已有映射或分配不足返回 -1。
+    - perm 仅允许 R、W、X、U；至少含 R 或 X，W 必须含 R。
+    - 失败时回滚本次叶项并回收本次中间页；保留调用前页表与物理页，调用者可回收未发布的目标页。
+  void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit);:
+    pre:
+    - pgtbl 有效且由调用者独占修改；va 页对齐，len 非零，取整范围完整落在 [0, VA_MAX) 且每页已有有效最低层叶项。
+    - freeit 为 true 时目标物理页为调用者独占的已分配页；映射已停止使用且所需 TLB 失效完成。
+    effects:
+    - 清除范围内所有叶项；freeit 为 true 时将各物理页归还其所属分配区域。
+    post:
+    - 目标叶项为零，范围外映射不变；freeit 为 false 时不归还物理页；中间页表页保留。
+    - 违反已映射范围或页所有权约定时 panic。
+  void kvm_init(void);:
+    pre:
+    - 物理分配器已初始化；单次构造，尚无 hart 使用 kernel_pgtbl。
+    - 链接布局提供页对齐的 trampoline、KERNEL_DATA 及 ALLOC_END。
+    effects:
+    - 构造临时根页表，为UART0一页和PLIC的PLIC_SIZE建立RW恒等映射；OpenSBI拥有的CLINT不映射。
+    - 内核 [KERNEL_BASE, PGROUNDUP(KERNEL_DATA)) 建立 RX 恒等映射；其后至 ALLOC_END 建立 RW 恒等映射。
+    - TRAMPOLINE 映射 trampoline 物理页为 RX；分配清零内核页并将 KSTACK(0) 映射为 RW，保留相邻保护页。
+    post:
+    - 全部映射无 PTE_U，完整成功后才发布 kernel_pgtbl；保留必要物理页供内核运行。
+    - 必要启动分配或映射失败时回收临时根、中间页和栈页，保持 kernel_pgtbl 未发布，再 panic。
+  void kvm_inithart(void);:
+    pre:
+    - 完整 kernel_pgtbl 已发布且当前栈和执行地址在新页表中可访问。
+    effects:
+    - 在当前 hart 写入 MAKE_SATP(kernel_pgtbl)，写前写后均执行 sfence.vma。
+    post:
+    - 当前 hart 使用内核 Sv39 页表；不会替其他 hart 激活。
+  void vm_print(pgtbl_t pgtbl);:
+    pre:
+    - pgtbl 是有效且遍历期间保持稳定的页表。
+    effects:
+    - 打印根地址和各层有效项的层号、索引、PTE 值及物理地址；只沿有效非叶项递归。
+    post:
+    - 页表和物理页所有权不变。
+  void vm_freewalk(pgtbl_t pgtbl);:
+    pre:
+    - 非NULL输入为已停止使用的有效4KiB Sv39层级，页表节点均由调用者独占。
+    effects:
+    - 递归回收各级页表页及根；所有叶项映射的物理页由调用者另行管理，不释放它们。
+    post:
+    - NULL无操作；非NULL页表不再可访问，原叶项物理页的内容与所有权不变。

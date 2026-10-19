@@ -1,0 +1,56 @@
+module: kernel/process
+owns:
+- src/kernel/proc/proc.c
+- src/kernel/proc/swtch.S
+- src/kernel/proc/type.h
+- src/kernel/proc/method.h
+state:
+  cpus: 每hart的当前进程指针与保存的内核上下文；由OpenSBI交付并写入tp的hart ID索引，有效范围为0..NCPU-1。
+  proczero: 唯一用户进程，拥有用户页表、trapframe、用户代码页和栈页；使用预先映射的 KSTACK(0)。
+  context_t: 依次为 ra、sp、s0..s11 的 64 位槽；C 与 swtch 汇编布局一致。
+  user_trapframe_t: 288 字节：前五槽为 kernel_satp/kernel_sp/kernel_trap/epc/kernel_hartid，其后按给定头文件排列全部用户整数寄存器；a0
+    偏移112，t6偏移280。
+  trapframe_alias: trapframe 页在用户页表中以 TRAPFRAME 出现（RW，不含 PTE_U）；内核页表不映射 TRAPFRAME，内核经恒等映射以物理地址访问同一页，proc.tf 保存该内核可见地址。
+rules:
+- 首进程构造完成前不得发布为运行状态；失败不留下半初始化进程。
+- 虚拟地址零页不映射；TRAMPOLINE RX 和 TRAPFRAME RW 不含 PTE_U；用户代码 RXU、栈 RWU。
+- 本阶段不引入多进程 scheduler；首进程通过 swtch 与 trap_user_return 首次进入用户态。
+- cpu.proc 只在页表、trapframe、用户栈与代码页全部就绪后写入一次；本阶段仅 hart0 发布并运行 proczero。
+functions:
+  cpu_t *mycpu(void):
+    pre:
+    - 当前在S-mode，tp 保存 OpenSBI 交付的 hart ID 且位于 0..NCPU-1。
+    effects: []
+    post:
+    - 返回 tp 对应的 cpus 元素；无效 hart id 是内核不变量错误。
+
+  proc_t *myproc(void):
+    pre:
+    - 当前在S-mode，tp 保存有效 hart ID。
+    effects: []
+    post:
+    - 返回当前 hart 的进程指针，允许 NULL；cpu.proc 只在首进程构造完成后写入，读取无需关中断。
+
+  pgtbl_t proc_pgtbl_init(uint64 trapframe):
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+
+  void proc_make_first(void):
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+
+  void swtch(context_t *old, context_t *new):
+    pre:
+    - old/new 是互不重叠的可读写有效 context_t；目标 sp/ra 有效。
+    effects:
+    - 写 old 上下文，替换当前寄存器和控制流。
+    post:
+    - 保存当前 ra/sp/s0..s11 到 old，恢复 new 对应寄存器，经恢复的 ra 继续；old 将来被恢复时，本次调用才继续返回。

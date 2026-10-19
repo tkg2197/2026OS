@@ -1,39 +1,40 @@
-# OS2026 · Lab3：内核陷阱、时钟和外设中断
+# OS2026 · Lab4：首个用户进程和用户态陷阱
 
-本分支在已完成的 `lab2` 上整理 Lab3 的现有规格与代码框架。Lab1、Lab2 的基础代码、测试和实验记录继续保留；Lab3 的核心空函数尚未完成，本次整理不代表实验验收通过。
+本分支从 `lab3` 继承前序内容，再加入已有的用户进程和用户态切换框架。Lab1、Lab2 已完成的基础代码、报告、截图和测试全部保留；Lab3 和 Lab4 的待补函数仍须实现。
 
-## 已完成内容与分支关系
+## 前序实验
 
-- [Lab1 报告](README.lab1.md)、[测试与记录](tests/lab1/)、[截图](pictures/lab1/)保留自 `lab1`。
-- [Lab2 报告](README.lab2.md)、[测试与记录](tests/lab2/)、[截图](pictures/lab2/)保留自 `lab2`。
-- 启动、UART、打印、自旋锁，以及物理页分配、buddy、内核堆和 Sv39 页表，使用 Lab2 已完成的实现。
-- `lab1`、`lab2` 保留各自的独立实验版本；`lab3` 继承前序基础，`lab4` 再从 `lab3` 增加用户进程与用户态陷阱。
-- 前序测试及其日志保留对应阶段的验证证据，运行到后续阶段时须结合接口与启动方式检查兼容性。
+- [Lab1 报告](README.lab1.md)、[测试与记录](tests/lab1/)、[截图](pictures/lab1/)。
+- [Lab2 报告](README.lab2.md)、[测试与记录](tests/lab2/)、[截图](pictures/lab2/)。
+- [Lab3 分支说明](README.lab3.md)、[Lab3 验收规格](spec/patches/lab3.yaml)。
+- 历史测试记录说明对应阶段的验证结果；后续分支仍需完成自己的构建与验收。
 
-## Lab3 内容
+## Lab4 内容
 
 | 文件 | 用途与当前状态 |
 | --- | --- |
-| `spec/patches/lab3.yaml` | 本实验目标和验收场景 |
-| `spec/modules/trap.yaml` | 内核陷阱、时钟、PLIC 的目标契约 |
-| `src/kernel/trap/trap.S` | 内核 trap 汇编入口 |
-| `src/kernel/trap/trap_kernel.c` | 内核 trap、设备和时钟分派框架，仍有待补部分 |
-| `src/kernel/trap/timer.c` | SBI 首次定时已有代码；共享时钟创建、更新和读取仍为空 |
-| `src/kernel/trap/plic.c` | PLIC 初始化、claim 和 complete |
-| `src/kernel/arch/sbi.c` | SBI TIME 与 HSM 调用 |
+| `spec/patches/lab4.yaml` | 首进程、ecall 往返和异常处理的验收目标 |
+| `src/kernel/proc/` | 进程结构、上下文和切换；页表初始化与首进程创建仍为空 |
+| `src/kernel/lib/cpu.c`、`type.h` | 当前 CPU 的进程指针和内核上下文 |
+| `src/kernel/trap/trampoline.S` | 用户态与内核态之间的汇编切换框架 |
+| `src/kernel/trap/trap_user.c` | 用户 trap 和返回用户态的待补函数 |
+| `src/user/`、`user.ld` | 用户程序、系统调用封装和用户链接脚本 |
+| `Makefile`、`kernel.ld` | 用户程序嵌入内核以及 trampoline 段的构建支持 |
 
-Lab4 的进程目录、用户程序、用户陷阱和 trampoline 源码仅在 `lab4` 分支中加入。
+用户与内核地址空间参考图保存在本实验自己的目录中：
+
+![Lab4 用户与内核地址空间](pictures/lab4/address-space.png)
 
 ## 构建与验收
 
 ```bash
-git switch lab3
+git switch lab4
 make clean
 make build
-# 完成待补实现并成功构建后：
+# 完成 Lab3、Lab4 的待补实现并成功构建后：
 make run
 ```
 
-需要 RISC-V GCC/binutils、GNU make 和 `qemu-system-riscv64`。2026-10-19 整理时已执行 `make build`：编译停在原有 `timer_get_ticks()` 缺少返回值、`system_timer` 未使用的错误。当前保留教学框架的空函数和 `-Wall -Werror`，须完成实现后再进行运行验收。
+在 Lab3 所需工具之外，用户代码嵌入还需要 `xxd`。`src/user/initcode.h` 由构建生成，不提交到仓库。
 
-完成目标见 [Lab3 验收规格](spec/patches/lab3.yaml)：时钟 ticks 持续推进，修改 `INTERVAL` 后频率相应变化，UART 正常回显并处理退格与换行。
+2026-10-19 整理时已执行 `make build`：用户程序及内嵌头文件生成成功，内核编译停在原有 `proc_pgtbl_init()` 缺少返回值、`proczero` 未使用的错误。本分支仍是待完成的教学框架，核心空函数会触发严格编译检查。继续实现时还需接通首进程启动、用户页表与 trampoline 映射，完成 ecall 和用户中断往返。验收应覆盖两次系统调用、用户执行期间的时钟/UART 中断，以及未知调用与用户异常，详见 [Lab4 验收规格](spec/patches/lab4.yaml)。
