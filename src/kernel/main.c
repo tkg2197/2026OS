@@ -1,6 +1,7 @@
 #include "arch/mod.h"
 #include "lib/mod.h"
 #include "mem/mod.h"
+#include "trap/mod.h"
 
 extern void _entry(void);
 
@@ -91,6 +92,7 @@ void main(void)
     if (hartid == 0)
     {
         print_init();
+        printf("cpu %d is booting with OpenSBI!\n", (int)hartid);
         pmem_init();
 
         buddy_test_single();
@@ -98,6 +100,9 @@ void main(void)
         kvm_init();
         kvm_inithart();
         kheap_init();
+
+        // Shared trap state must be ready before secondary harts start.
+        trap_kernel_init();
 
         printf("cpu %d: paging enabled, satp=%x\n",
                (int)hartid, r_satp());
@@ -126,6 +131,14 @@ void main(void)
     }
 
     buddy_test_parallel(hartid);
+
+    // 以下初始化是每个CPU各自独有的
+
+    // PLIC开关, 中断入口stvec, 中断使能位
+    trap_kernel_inithart();
+
+    // 设置本CPU的第一次时钟事件, 并打开S-mode时钟中断
+    timer_init();
 
     while (1)
         asm volatile("wfi");

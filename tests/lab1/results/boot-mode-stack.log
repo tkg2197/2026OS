@@ -1,0 +1,8 @@
+cpu 1 is booting!
+cpu 0 is booting!
+BOOT hart=1 sp=0x00000000800036b0 stack=[0x00000000800026f0,0x00000000800036f0) satp=0x0000000000000000
+BOOT hart=0 sp=0x00000000800026b0 stack=[0x00000000800016f0,0x00000000800026f0) satp=0x0000000000000000
+BOOT hart=0 saved_MPP=1 PMP=0x000000000000000f ecall_mcause=9
+BOOT hart=1 saved_MPP=1 PMP=0x000000000000000f ecall_mcause=9
+BOOT MODE/STACK PASS: two harts in S-mode
+qemu-system-riscv64: terminating on signal 15 from pid 8635 (python3)

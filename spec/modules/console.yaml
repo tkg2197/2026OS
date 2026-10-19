@@ -1,0 +1,114 @@
+module: kernel/console
+owns:
+  - src/kernel/lib/uart.c
+  - src/kernel/lib/print.c
+  - src/kernel/lib/utils.c
+  - src/kernel/lib/method.h
+  - src/kernel/lib/type.h
+state:
+  UART0: 0x10000000 的 ns16550a UART；寄存器按字节偏移进行 volatile uint8 访问。
+  print_lock: 串行化一次 printf 的全部输出，初始化后持续有效。
+rules:
+  - UART 初始化和打印锁初始化完成后才能使用正常打印；启用接收中断前必须建立接收中断处理路径。
+  - printf 持有 print_lock 时完成一次格式化输出，所有正常返回路径均释放锁；直接 UART 输出和 panic 不保证与 printf 串行化。
+  - panic 仅用于内核不变量破坏或必要启动条件无法满足；外部输入、未知格式和运行时资源不足不得触发 panic。
+functions:
+  "void uart_init(void);":
+    effects:
+      - 禁用 IER；设置 DLAB，分频低字节 3、高字节 0，再切换为 8 数据位、无校验、1 停止位。
+      - 向 FCR 写入 7，启用并清空收发 FIFO。
+    post:
+      - UART 可供轮询收发，接收中断仍关闭。
+  "void uart_enable_rx_interrupt(void);":
+    pre:
+      - UART 已初始化，PLIC 和监督者接收处理路径已准备好。
+    effects:
+      - 向 IER 写入 1。
+    post:
+      - UART 接收数据可产生中断。
+  "void uart_putc_sync(int c);":
+    effects:
+      - 轮询 LSR 位 5，发送器可接受数据后向 THR 写入 c 的低 8 位。
+    post:
+      - 恰好提交一个字节；不插入换行、不扩展字符、不表示线路发送已完成。
+  "int uart_getc_sync(void);":
+    effects:
+      - LSR 位 0 置位时读取并消费 RHR 中一个字节。
+    post:
+      - 有数据返回 0..255；无数据立即返回 -1。
+  "void uart_intr(void);":
+    effects:
+      - 持续读取当前可用接收字节并通过 printf 回显。
+    post:
+      - 退格 0x08 和删除 0x7f 各输出字节序列 0x08、0x20、0x08。
+      - 每个 CR 或 LF 各输出 CR、LF；其他字节原样输出；接收为空后返回。
+  "void print_init(void);":
+    pre:
+      - 尚无并发打印或 UART 接收处理。
+    effects:
+      - 初始化 UART 和名为 printf 的 print_lock。
+    post:
+      - 正常打印可用。
+  "void printint(int xx, int base, int sign);":
+    pre:
+      - base 为 2..16；需串行输出时调用者已持有 print_lock。
+    effects:
+      - 输出 xx 的 32 位数值，使用小写数字，无基数前缀。
+    post:
+      - sign 非零时负数输出负号及绝对值，正确处理 INT_MIN；否则按 uint32 输出；零输出一个 0。
+  "void printptr(uint64 x);":
+    effects:
+      - 输出 0x 和恰好 16 个小写十六进制数字。
+    post:
+      - 前导零保留，输出完整 64 位值。
+  "void printfloat(double f, int precision);":
+    pre:
+      - f 有限且其绝对值小于 2^64；precision 非负。
+    effects:
+      - 输出可选负号、十进制整数部分、小数点和 precision 位小数。
+    post:
+      - 小数逐位截断而非四舍五入；precision 为零仍输出小数点。
+  "void printf(const char *fmt, ...);":
+    pre:
+      - fmt 是有效的 NUL 结尾字符串；可识别转换的实参类型和数量匹配。
+      - "%f 的实参满足 printfloat 的取值范围。"
+    effects:
+      - 获取 print_lock，按格式顺序输出，结束可变参数访问并释放锁。
+    post:
+      - "%d 读取 int，输出 32 位有符号十进制；%p 读取 unsigned int，输出 32 位无符号小写十六进制，无 0x 前缀。"
+      - "%x 读取 uint64，输出 0x 加 16 位小写十六进制；%c 读取提升后的 int，输出低 8 位。"
+      - "%s 输出字符串至 NUL，NULL 输出 (null)；%f 读取 double，截断输出 6 位小数。"
+      - "%% 输出一个 %；未知转换原样输出 % 及其后字符且不消费实参；末尾单独的 % 不输出。"
+  "void panic(const char *s) __attribute__((noreturn));":
+    pre:
+      - 调用用于报告不可继续的内核不变量破坏或必要启动条件无法满足。
+    effects:
+      - 关闭当前 hart 的监督者中断，直接输出 panic、冒号、空格、可选消息及 LF。
+    post:
+      - 当前 hart 永不返回；无需获取 print_lock，允许在持锁时诊断；不隐含停止其他 hart。
+  "void assert(bool condition, const char *warning);":
+    effects:
+      - condition 为假时调用 panic(warning)。
+    post:
+      - 条件为真正常返回；条件为假不返回。
+  "void memset(void *begin, uint8 data, uint32 n);":
+    pre:
+      - n 非零时 begin 指向至少 n 字节可写区域。
+    effects:
+      - 将目标的前 n 字节填充为 data。
+    post:
+      - n 为零不访问目标；范围外字节不变。
+  "void memmove(void *dst, const void *src, uint32 n);":
+    pre:
+      - n 非零时源与目标分别有至少 n 字节可读和可写区域。
+    effects:
+      - 将源的 n 字节复制到目标，允许任意重叠。
+    post:
+      - 目标等于调用前源内容；n 为零或源目标相同时不改变内存。
+  "int strncmp(const char *p, const char *q, uint32 n);":
+    pre:
+      - n 非零时两输入均可读至各自第一个 NUL 或 n 字节。
+    effects: []
+    post:
+      - 按 unsigned byte 比较，遇首个差异、NUL 或 n 字节结束；相等返回 0，否则返回首个不同字节之差。
+      - n 为零返回 0 且不访问输入。

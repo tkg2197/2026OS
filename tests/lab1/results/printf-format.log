@@ -1,0 +1,8 @@
+FMT signed: 0 1 -1 2147483647 -2147483648
+FMT p32: 0 80000000 ffffffff
+FMT x64: 0x123456789abcdef0 0xffffffffffffffff
+FMT text: Z hello (null) %
+FMT unknown: %q
+FMT trailing: %
+PRINTF FORMAT PASS
+qemu-system-riscv64: terminating on signal 15 from pid 8635 (python3)

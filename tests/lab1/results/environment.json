@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-15 11:10:07 +0800",
+  "source": "/home/tkg/OS2026-lab1-readme",
+  "workspace": "/tmp/os2026-lab1-test-2dilpj9b",
+  "head": "a3dad2808a4d9d48004b1f5637e07feb757f3c18",
+  "qemu": "QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)",
+  "gcc": "riscv64-linux-gnu-gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "qemu_options": "-machine virt -bios none -m 128M -smp 2 -accel tcg,thread=multi -nographic",
+  "source_sha256": {
+    "src/kernel/arch/method.h": "578158a8c62c5e9a28c486a97cc33848b9b9f5aac2f4eb0f13acd4e89336212c",
+    "src/kernel/arch/mod.h": "81847d07db0765e84f374d7ae54ebeb40e36bad5bb6c97aa69eeaf642261ddac",
+    "src/kernel/arch/type.h": "b90c6df42ff8200875d09adb77892aa139fe0036e8d089792d3526a890effdde",
+    "src/kernel/boot/entry.S": "6d205570f296de48a80bf697f12486b4fc0e1b7d0c68c300f9fdb5a1982814cf",
+    "src/kernel/boot/start.c": "2add075aa87319def7c04b3feace3b9f5e87f71ea072adaab12ec117307cbfca",
+    "src/kernel/lib/cpu.c": "792eab5acb9bb7bea93be16e2136cbd7f3c7e27750f1bc4dfbdd1c3edc2fef2b",
+    "src/kernel/lib/method.h": "9b4443a2bd67a6ef5d7e712417538acb2f7408c727798d24e9b3dbf123b23890",
+    "src/kernel/lib/mod.h": "e6eaa0a5db462a2146f3368a92928c10beb33f9c921bbabf3875627b0e4c503b",
+    "src/kernel/lib/print.c": "299dcb10b8e9f573c3b19f764afa68efe04bcfdb8b01ceb124537b5e6c3d7718",
+    "src/kernel/lib/type.h": "809965de6bcacd5d003c90f562c9a2597ed7dd840eb68ea7eb491e4d63b2d065",
+    "src/kernel/lib/uart.c": "6575d576246a3ea68557f6fd98d5d3cc31c174bc8a5c5410555e9d3ee46ea319",
+    "src/kernel/lock/method.h": "55b799ea9cb9492095e459a97275cec404b5ad07d88aaca681f714a4438d20ca",
+    "src/kernel/lock/mod.h": "b74f6be3a66e8ba09c84298444fb376a3bc1f81e45679d9cdc43daf39b173a67",
+    "src/kernel/lock/spinlock.c": "a87f82dd2fb6f001b1f6204b8b516c37fbbf3bf919d9fb76d7cc63a80c9cb96e",
+    "src/kernel/lock/type.h": "e9e3d08858bfb56a45195352854540a1956f02cbcce4123c35d72e9906e4f525",
+    "src/kernel/main.c": "f0f2a4fccf93acb222d81c57e871de2420b8e78384732c24feb5a03adab3dde6",
+    "Makefile": "b7dd5b13597b4f6ca4bd535d9afb401f2a52a243f8e166f0a250321716d9f7aa",
+    "common.mk": "164012e8ed13242beb73e7ed3927b5cc1101326c9714424777c990db1b669e59",
+    "kernel.ld": "8c729229e4ee68109f9fbca1b47d075bb067dae2c1eed4a651c1afaa876a7ade"
+  },
+  "fixture_changes": "Only temporary main; boot diagnostics install temporary M-mode ecall handler; unlocked printf removes only print_lk acquire/release.",
+  "source_unchanged": true
+}

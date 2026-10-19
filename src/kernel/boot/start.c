@@ -1,4 +1,5 @@
 #include "../arch/mod.h"
+#include "../trap/mod.h"
 
 // 每个CPU在运行操作系统时需要一个初始的函数栈
 __attribute__((aligned(16))) uint8 CPU_stack[4096 * NCPU];

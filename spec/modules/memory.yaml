@@ -1,0 +1,13 @@
+module: kernel/memory
+owns:
+- src/kernel/mem/pmem.c
+- src/kernel/mem/heap.c
+- src/kernel/mem/kvm.c
+- src/kernel/mem/type.h
+- src/kernel/mem/method.h
+rules:
+- 继承 lab2 分支已完成的 buddy、内核堆和混合大小 Sv39 页表实现。
+- 内核页表为 UART_BASE 的一页和 PLIC_BASE 开始的 PLIC_SIZE 范围建立 RW 映射。
+- OpenSBI 拥有的 CLINT 不在 S-mode 直接访问。
+- 内核代码为 RX，数据和可分配物理内存为 RW；不得加入 PTE_U。
+- 实现接口与 Lab2 验证记录见 README.lab2.md；本实验不修改内存分配器和页表源码。

@@ -1,0 +1,61 @@
+module: kernel/lock
+owns:
+  - src/kernel/lock/spinlock.c
+  - src/kernel/lock/method.h
+  - src/kernel/lock/type.h
+state:
+  interrupt_depth: 按 hart 索引的关闭监督者中断嵌套深度。
+  interrupt_was_enabled: 每个 hart 最外层 push_off 前的 SSTATUS.SIE。
+  spinlock_t.locked: 原子锁字；0 为空闲，1 为持有或获取中的状态。
+  spinlock_t.owner: 持有锁的 hart ID；未持有时为 ~0UL。
+  spinlock_t.name: 由调用者保留存储的诊断名称。
+rules:
+  - 每个hart的tp在内核中保存OpenSBI通过a0交付的稳定hart ID，范围为0..NCPU-1；当前NCPU为2。
+  - 同一 hart 的 push_off 与 pop_off 必须配对；最外层保存中断状态，最后一层退出才允许恢复。
+  - 每次成功 acquire 增加一层关闭中断深度，对应 release 减少一层；不同锁嵌套遵守同一协议。
+  - 非递归自旋锁只由持有 hart 释放；acquire/release 的内存屏障使临界区写入对下一个持有者可见。
+functions:
+  "uint64 hart_id(void);":
+    effects: []
+    post:
+      - 返回当前内核 tp 中保存的 hart ID。
+  "void push_off(void);":
+    effects:
+      - 关闭当前 hart 的 SSTATUS.SIE，最外层保存原使能状态并增加嵌套深度。
+    post:
+      - SIE 为零；已有外层保存状态不变；非法 hart ID 或深度溢出属于不变量破坏并 panic。
+  "void pop_off(void);":
+    effects:
+      - 将当前 hart 嵌套深度减少一层。
+    post:
+      - 最后一层退出且最外层进入前 SIE 为一时恢复 SIE；其他情况保持关闭。
+      - 非法 hart ID、SIE 提前开启或深度为零时 panic。
+  "void spinlock_init(spinlock_t *lk, const char *name);":
+    pre:
+      - lk 是可写且未被并发访问或持有的锁；name 存储至少与锁同寿命。
+    effects:
+      - 设置 name，locked 为 0，owner 为 ~0UL。
+    post:
+      - lk 可被获取。
+  "bool spinlock_holding(spinlock_t *lk);":
+    pre:
+      - lk 指向已初始化且仍有效的锁。
+    effects: []
+    post:
+      - 仅当 locked 非零且 owner 为当前 hart 时返回 true。
+  "void spinlock_acquire(spinlock_t *lk);":
+    pre:
+      - lk 指向已初始化且仍有效的锁。
+    effects:
+      - push_off 后以原子交换等待 locked 从 0 变为 1，并建立获取屏障，记录当前 owner。
+    post:
+      - 当前 hart 独占锁且中断关闭；等待其他持有者释放属于正常等待。
+      - 当前 hart 递归获取同一锁时 panic。
+  "void spinlock_release(spinlock_t *lk);":
+    pre:
+      - lk 指向已初始化且仍有效的锁。
+    effects:
+      - 清除 owner，建立释放屏障，原子释放 locked，再 pop_off。
+    post:
+      - lk 可由其他 hart 获取；中断状态按完整嵌套深度恢复。
+      - 非持有者释放时 panic。

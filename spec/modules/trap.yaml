@@ -1,0 +1,119 @@
+module: kernel/trap
+owns:
+- src/kernel/trap/trap_kernel.c
+- src/kernel/trap/trap.S
+- src/kernel/trap/timer.c
+- src/kernel/trap/plic.c
+- src/kernel/trap/method.h
+- src/kernel/trap/type.h
+state:
+  system_timer: 全局共享timer_t，包含由自旋锁保护的uint64 ticks。
+  time_source: S-mode通过r_time读取时间，并通过OpenSBI TIME扩展为每个hart设置下一次绝对时间事件；内核不直接访问CLINT。
+  PLIC: 0x0c000000的外部中断控制器；UART_IRQ为10。
+  kernel_vector_frame: 内核栈上的256字节保存区，通用寄存器偏移与trap.S一致；sepc、sstatus由C处理函数从CSR读取。
+rules:
+- timer_create与PLIC全局初始化只由hart0执行一次；timer_init由每个hart在S-mode本地trap入口准备好后执行一次。
+- INTERVAL是正的硬件时间计数间隔，当前为1000000；system_timer.ticks计数hart0已处理的时钟中断，不等同于墙钟时间。
+- OpenSBI在到期时向目标hart交付S-mode时钟中断；处理程序必须再次调用sbi_set_timer(r_time()+INTERVAL)，不使用M-mode timer_vector或SSIP转发。
+- PLIC claim返回非零IRQ后，同一hart处理完毕恰好complete一次；零表示无可领取源，不complete。
+- 内核trap进入C处理函数时SSTATUS.SIE关闭；kernel_vector恢复其保存的通用寄存器并以sret返回。
+functions:
+  "void timer_init(void);":
+    pre:
+    - 当前在S-mode，OpenSBI TIME扩展可用，stvec已指向有效入口，当前hart ID位于0..NCPU-1。
+    effects:
+    - 调用sbi_set_timer(r_time()+INTERVAL)设置当前hart的首次绝对时间事件。
+    - 在保留sie其他位的同时设置SIE_STIE。
+    post:
+    - 当前hart可接收S-mode时钟中断；不会初始化或递增共享ticks，也不直接访问CLINT。
+  "void timer_create(void);":
+    pre:
+    - 单次调用，尚无tick更新或读取。
+    effects:
+    - 初始化system_timer.lk并将system_timer.ticks清零。
+    post:
+    - 全局tick计数可并发访问。
+  "void timer_update(void);":
+    pre:
+    - system_timer已初始化，调用路径只允许hart0贡献共享tick。
+    effects:
+    - 持有system_timer.lk时递增system_timer.ticks。
+    post:
+    - 本次贡献一次递增，按uint64回绕，锁已释放。
+  "uint64 timer_get_ticks(void);":
+    pre:
+    - system_timer已初始化。
+    effects:
+    - 获取并释放system_timer.lk，读取system_timer.ticks。
+    post:
+    - 返回一次一致的tick快照，不重置计数。
+  "void plic_init(void);":
+    pre:
+    - PLIC可访问且尚无外部中断处理。
+    effects:
+    - 将UART_IRQ的优先级设置为1。
+    post:
+    - UART源具有非零优先级；各hart使能仍由plic_inithart完成。
+  "void plic_inithart(void);":
+    pre:
+    - 全局PLIC初始化完成，tp为0..NCPU-1内的hart ID。
+    effects:
+    - 向当前hart的S enable地址PLIC+0x2080+hart*0x100写入1<<10。
+    - 向S threshold地址PLIC+0x201000+hart*0x2000写入0。
+    post:
+    - 当前hart的监督者PLIC context可领取UART中断，其他源未使能。
+  "int plic_claim(void);":
+    pre:
+    - 当前hart的监督者PLIC context已初始化。
+    effects:
+    - 从PLIC+0x201004+hart*0x2000读取claim，领取一个pending源。
+    post:
+    - 返回所领取IRQ；0表示无源；非零源在处理后必须由同一hart完成。
+  "void plic_complete(int irq);":
+    pre:
+    - irq非零且由当前hart先前claim，处理已完成且尚未complete。
+    effects:
+    - 向当前hart的claim/complete寄存器写入irq。
+    post:
+    - PLIC获得一次完成通知，可重新投递该源。
+  "void trap_kernel_init(void);":
+    pre:
+    - 当前在S-mode，全局初始化只执行一次；UART、打印和PLIC映射可用，监督者中断关闭。
+    effects:
+    - 初始化PLIC全局优先级和共享system_timer。
+    post:
+    - 全局trap资源就绪；各hart仍须执行trap_kernel_inithart和timer_init。
+  "void trap_kernel_inithart(void);":
+    pre:
+    - 全局trap初始化完成，内核页表已激活，tp正确且push_off深度为零。
+    effects:
+    - 初始化当前hart的PLIC context，把stvec设为kernel_vector，设置sie.SEIE并开启SSTATUS.SIE。
+    post:
+    - 当前hart可处理UART外部中断；timer_init随后设置sie.STIE并安排首次时钟事件。
+  "void timer_interrupt_handler(void);":
+    effects:
+    - 通过sbi_set_timer(r_time()+INTERVAL)设置当前hart的下一次时钟事件；当前hart为0时调用timer_update。
+    post:
+    - 本次到期事件已重新安排；只有hart0对共享ticks贡献一次递增。
+  "void external_interrupt_handler(void);":
+    effects:
+    - claim一个IRQ；UART_IRQ交给uart_intr，其他非零IRQ输出诊断。
+    - 完成每个领取的非零IRQ。
+    post:
+    - IRQ为零直接返回；未知IRQ已确认完成，不导致内核panic。
+  "void trap_kernel_handler(void);":
+    pre:
+    - 由kernel_vector进入，原现场为S-mode且当前SSTATUS.SIE为零。
+    effects:
+    - 读取sepc、sstatus、scause和stval；按scause分派S-mode时钟中断和S-mode外部中断。
+    post:
+    - cause 5的时钟中断由timer_interrupt_handler处理，cause 9的外部中断由external_interrupt_handler处理。
+    - 已识别中断处理完成后返回，由kernel_vector恢复现场；未识别异常或中断输出诊断后panic。
+  kernel_vector:
+    pre:
+    - 从S-mode trap进入，当前内核栈可写且具备至少256字节保存空间。
+    effects:
+    - sp减少256，按trap.S中的固定偏移保存通用寄存器，调用trap_kernel_handler，然后恢复现场。
+    post:
+    - ra偏移0，帧基址形式的sp偏移8，gp偏移16，tp偏移24，a0偏移72，t6偏移240。
+    - tp不从保存区恢复，保持内核hart ID；其余已保存寄存器恢复，sp增加256后通过sret返回。

@@ -1,0 +1,2 @@
+panic! lab1 expected assertion
+qemu-system-riscv64: terminating on signal 15 from pid 8635 (python3)

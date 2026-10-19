@@ -1,0 +1,127 @@
+[
+  {
+    "name": "original-atomic-entry",
+    "status": "PASS",
+    "expected": "cpu 1 report: sum = 2000000",
+    "expected_panic": false,
+    "seconds": 0.405
+  },
+  {
+    "name": "boot-mode-stack",
+    "status": "PASS",
+    "expected": "BOOT MODE/STACK PASS",
+    "expected_panic": false,
+    "seconds": 0.341
+  },
+  {
+    "name": "add-unlocked",
+    "status": "PASS",
+    "expected": "UNLOCKED ADD DEMO COMPLETE",
+    "expected_panic": false,
+    "seconds": 0.391,
+    "final_counts": [
+      1023956,
+      892911,
+      923135,
+      898341,
+      1010461
+    ]
+  },
+  {
+    "name": "add-fine-lock",
+    "status": "PASS",
+    "expected": "LOCKED ADD PASS: mode=fine",
+    "expected_panic": false,
+    "seconds": 1.415
+  },
+  {
+    "name": "add-coarse-lock",
+    "status": "PASS",
+    "expected": "LOCKED ADD PASS: mode=coarse",
+    "expected_panic": false,
+    "seconds": 0.343
+  },
+  {
+    "name": "printf-format",
+    "status": "PASS",
+    "expected": "PRINTF FORMAT PASS",
+    "expected_panic": false,
+    "seconds": 0.341
+  },
+  {
+    "name": "printf-locked",
+    "status": "PASS",
+    "expected": "PRINTF RECORDS DONE",
+    "expected_panic": false,
+    "seconds": 0.417,
+    "total_lines": 64,
+    "valid_records": 64,
+    "broken_lines": 0
+  },
+  {
+    "name": "printf-unlocked",
+    "status": "PASS",
+    "expected": "PRINTF RECORDS DONE",
+    "expected_panic": false,
+    "seconds": 0.435,
+    "total_lines": 64,
+    "valid_records": 19,
+    "broken_lines": 45
+  },
+  {
+    "name": "nested-interrupt",
+    "status": "PASS",
+    "expected": "NESTED INTERRUPT/LOCK OWNERSHIP PASS",
+    "expected_panic": false,
+    "seconds": 0.336
+  },
+  {
+    "name": "uart-input",
+    "status": "PASS",
+    "expected": "UART INPUT PASS",
+    "expected_panic": false,
+    "seconds": 0.338
+  },
+  {
+    "name": "bad-recursive-lock",
+    "status": "PASS",
+    "expected": "spinlock_acquire: already holding",
+    "expected_panic": true,
+    "seconds": 0.318
+  },
+  {
+    "name": "bad-unheld-release",
+    "status": "PASS",
+    "expected": "spinlock_release: not holding",
+    "expected_panic": true,
+    "seconds": 0.321
+  },
+  {
+    "name": "bad-cross-hart-release",
+    "status": "PASS",
+    "expected": "spinlock_release: not holding",
+    "expected_panic": true,
+    "seconds": 0.332
+  },
+  {
+    "name": "bad-pop-underflow",
+    "status": "PASS",
+    "expected": "push_off: 2",
+    "expected_panic": true,
+    "seconds": 0.317
+  },
+  {
+    "name": "bad-pop-enabled",
+    "status": "PASS",
+    "expected": "push_off: 1",
+    "expected_panic": true,
+    "seconds": 0.322
+  },
+  {
+    "name": "bad-assert",
+    "status": "PASS",
+    "expected": "lab1 expected assertion",
+    "expected_panic": true,
+    "seconds": 0.321
+  }
+]

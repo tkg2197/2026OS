@@ -1,0 +1,14 @@
+system: RV64GC 单体教学内核：Lab3 内核陷阱、时钟与外设中断。
+machine:
+  board: QEMU virt
+  firmware: OpenSBI，内核运行在 S-mode。
+  memory: 130 MiB；前 2 MiB 归 OpenSBI，内核从 0x80200000 开始。
+  harts: 2；hart0 通过 SBI HSM 启动 hart1。
+mechanisms:
+- 继承 Lab1 的启动、UART、打印和自旋锁，以及 Lab2 的物理内存、内核堆和 Sv39 页表。
+- 内核 trap 入口和现场保存恢复。
+- SBI TIME 定时事件、共享 ticks 和 PLIC/UART 外部中断。
+rules:
+- 先完成共享初始化，再启动次级 hart；每个 hart 安装自己的 trap 和时钟环境。
+- 内核不直接访问 M-mode CSR 或 OpenSBI 管理的 CLINT。
+- 规格描述实验目标，空函数仍须完成，不能将框架视为验收通过。

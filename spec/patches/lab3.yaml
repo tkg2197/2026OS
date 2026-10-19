@@ -1,0 +1,29 @@
+lab: 3
+goal: 在内存基础上加入监督者异常入口、OpenSBI TIME时钟和UART/PLIC设备中断。
+requires: lab2
+changes:
+- kernel/arch
+- kernel/trap
+- kernel/memory
+- kernel/boot
+- toolchain
+acceptance:
+- scenario: timer-interrupt-rate
+  input:
+  - 在时钟中断路径临时输出ticks。
+  - 使用make run启动Lab3。
+  - 观察连续时钟滴答。
+  - 修改INTERVAL后重新构建运行并比较输出频率。
+  expected:
+  - ticks单调递增且系统持续响应。
+  - 增大INTERVAL后滴答变慢，减小后变快。
+  - 每次S-mode时钟中断均通过SBI重新设置下一次事件，并能返回原执行流。
+- scenario: uart-console-echo
+  input:
+  - 使用make run进入QEMU控制台。
+  - 依次输入普通字符、Backspace和回车换行。
+  - 连续快速输入一串字符。
+  expected:
+  - 普通字符被逐个回显。
+  - Backspace执行退格、空格、再次退格的擦除效果。
+  - 回车统一显示正确换行，输入期间时钟中断仍可继续处理。

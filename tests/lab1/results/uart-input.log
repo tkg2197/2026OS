@@ -1,0 +1,9 @@
+UART INPUT READY
+UART_RX[0]=76
+UART_RX[1]=97
+UART_RX[2]=98
+UART_RX[3]=49
+UART_RX[4]=33
+UART_RX[5]=10
+UART INPUT PASS: 6 bytes matched
+qemu-system-riscv64: terminating on signal 15 from pid 8635 (python3)

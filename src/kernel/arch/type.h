@@ -38,6 +38,10 @@ typedef enum
 #define SBI_EXT_HSM 0x48534D
 #define SBI_HSM_HART_START 0
 
+/* SBI Timer extension */
+#define SBI_EXT_TIME 0x54494D45
+#define SBI_TIME_SET_TIMER 0
+
 
 /* RISC-V 架构常量与宏定义 */
 
@@ -49,6 +53,6 @@ typedef enum
 #define SSTATUS_UIE (1L << 0)
 
 /* Supervisor Interrupt Enable (sie) */
-#define SIE_SEIE (1L << 9) /* 外部中断 */
-#define SIE_STIE (1L << 5) /* 定时器中断 */
-#define SIE_SSIE (1L << 1) /* 软件中断 */
+#define SIE_SEIE (1L << 9) /* S-mode 外设中断 */
+#define SIE_STIE (1L << 5) /* S-mode 时钟中断 */
+#define SIE_SSIE (1L << 1) /* S-mode 软件中断 */

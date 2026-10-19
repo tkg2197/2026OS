@@ -1,0 +1,37 @@
+module: kernel/boot
+owns:
+- src/kernel/boot/entry.S
+- src/kernel/boot/start.c
+- src/kernel/main.c
+state:
+  CPU_stack: 每hart 4096字节的早期栈数组，整体16字节对齐；有效hart ID为0..NCPU-1，当前NCPU为2。
+  initialized: hart0完成共享初始化后发布；其他hart在使用共享页表和trap状态前等待该标志。
+  firmware_handoff: OpenSBI以S-mode进入_entry，a0为hart ID，a1为DTB地址或HSM opaque；本内核不解析a1。
+rules:
+- 共享模块只由hart0初始化一次；所有有效hart都安装自己的页表和trap环境。
+- M-mode CSR、PMP、异常委派和CLINT由OpenSBI管理；内核不得直接配置或访问这些机器态资源。
+- hart0由OpenSBI初始启动，hart1由hart0通过SBI HSM扩展启动；HSM返回错误属于不可继续的启动失败。
+functions:
+  _entry:
+    pre:
+    - OpenSBI在0x80200000以S-mode进入，a0中的hart ID位于0..NCPU-1。
+    effects:
+    - 以a0选择CPU_stack中的4096字节槽并把sp设置为该槽顶端，保持a0作为start的hartid参数。
+    post:
+    - 当前hart使用独立早期栈调用start(hartid)；若start意外返回则停在wfi循环。
+  void start(uint64 hartid):
+    pre:
+    - 由_entry在S-mode调用，hartid来自OpenSBI且位于0..NCPU-1。
+    effects:
+    - 将satp清零并执行sfence.vma，把hartid写入tp，然后调用main。
+    post:
+    - main开始时仍在S-mode和bare地址转换状态，tp稳定保存当前hart ID；start不执行mret且不返回。
+  void main(void):
+    effects:
+    - hart0初始化打印、物理内存、内核页表、全局trap状态，发布initialized，并通过sbi_hart_start启动其余hart。
+    - 每个hart安装内核页表、本地PLIC与stvec环境，使用SBI TIME设置首次定时事件并开启中断。
+    post:
+    - hart0在共享初始化完成前不启动次级hart；每次HSM调用均检查sbi_ret_t.error。
+    - 各hart完成本地初始化后停在可处理中断的wfi循环。
+    - 每个hart恰好输出一次带OpenSBI的启动提示；共享初始化仅由hart0执行。
+    - 主流程不返回。

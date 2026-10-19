@@ -1,0 +1,154 @@
+module: kernel/arch
+owns:
+- src/kernel/arch/sbi.c
+- src/kernel/arch/mod.h
+- src/kernel/arch/method.h
+- src/kernel/arch/type.h
+state:
+  privilege: 内核由OpenSBI交接后始终运行在S-mode；M-mode状态、PMP、异常委派和CLINT归固件所有。
+  sbi_ret_t: SBI调用结果，error为有符号错误码，value为扩展定义的返回值。
+  sstatus: 监督者中断使能、返回状态和前一特权级。
+  sie: 监督者软件、时钟和外部中断源使能位。
+  sip: 监督者pending位，具体可写性由硬件与OpenSBI决定。
+  sepc: 下一次sret的返回地址。
+  stvec: 监督者trap入口和模式。
+  sscratch: 监督者trap暂存寄存器。
+  satp: 地址转换模式、ASID和根页表物理页号。
+  scause: 最近一次监督者trap的中断标志及原因。
+  stval: 最近一次监督者异常附加值。
+  time: OpenSBI允许S-mode读取的平台递增时间计数器。
+  tp: 内核期间的当前hart ID；初值来自OpenSBI传入_entry的a0。
+rules:
+- NCPU固定为2，QEMU的CPUNUM必须与之相等；OpenSBI传入的hart ID必须落在0..NCPU-1。
+- 内核不得读写mstatus、mepc、mhartid、medeleg、mideleg、mie、mtvec、mscratch、mcounteren、pmpcfg或pmpaddr，也不得直接访问CLINT。
+- S-mode CSR接口只修改所命名的寄存器；只读位与WARL字段遵循硬件约束，调用者提供合法编码。
+- w_satp不替调用者执行sfence.vma；修改地址空间和TLB失效必须由上层协议配对。
+- SBI ecall使用a7传EID、a6传FID、a0..a5传参数，并从a0/a1取得error/value；调用者必须处理扩展可能返回的错误。
+- 内核tp始终保存范围内hart ID。
+functions:
+  "sbi_ret_t sbi_ecall(uint64 eid, uint64 fid, uint64 arg0, uint64 arg1, uint64 arg2, uint64 arg3, uint64 arg4, uint64 arg5);":
+    effects:
+    - 按SBI调用约定装载a0..a7并执行ecall，声明memory影响。
+    post:
+    - 返回a0中的有符号error和a1中的有符号value；不解释扩展语义。
+  "sbi_ret_t sbi_hart_start(uint64 hartid, uint64 start_addr, uint64 opaque);":
+    effects:
+    - 调用SBI HSM扩展的HART_START功能，参数依次为hartid、start_addr和opaque。
+    post:
+    - 返回OpenSBI的错误码和值；成功表示目标hart将以S-mode从start_addr进入，a0=hartid且a1=opaque。
+  "sbi_ret_t sbi_set_timer(uint64 stime_value);":
+    effects:
+    - 调用SBI TIME扩展的SET_TIMER功能，为当前hart设置绝对时间stime_value。
+    post:
+    - 返回OpenSBI结果；成功后当前hart在time达到目标值时产生S-mode时钟中断。
+  "uint64 r_sstatus(void);":
+    effects: []
+    post:
+    - 返回当前hart的sstatus值。
+  "uint64 r_sip(void);":
+    effects: []
+    post:
+    - 返回当前hart的sip值。
+  "uint64 r_sie(void);":
+    effects: []
+    post:
+    - 返回当前hart的sie值。
+  "uint64 r_sepc(void);":
+    effects: []
+    post:
+    - 返回当前hart的sepc值。
+  "uint64 r_stvec(void);":
+    effects: []
+    post:
+    - 返回当前hart的stvec值。
+  "uint64 r_satp(void);":
+    effects: []
+    post:
+    - 返回当前hart的satp值。
+  "uint64 r_scause(void);":
+    effects: []
+    post:
+    - 返回当前hart的scause值。
+  "uint64 r_stval(void);":
+    effects: []
+    post:
+    - 返回当前hart的stval值。
+  "void w_sstatus(uint64 value);":
+    effects:
+    - 向当前hart的sstatus写入value。
+    post:
+    - 当前hart的sstatus可写字段按value设置。
+  "void w_sip(uint64 value);":
+    effects:
+    - 向当前hart的sip写入value。
+    post:
+    - 当前hart的sip可写字段按value设置。
+  "void w_sie(uint64 value);":
+    effects:
+    - 向当前hart的sie写入value。
+    post:
+    - 当前hart的sie可写字段按value设置。
+  "void w_sepc(uint64 value);":
+    effects:
+    - 向当前hart的sepc写入value。
+    post:
+    - 当前hart的sepc可写字段按value设置。
+  "void w_stvec(uint64 value);":
+    effects:
+    - 向当前hart的stvec写入value。
+    post:
+    - 当前hart的stvec可写字段按value设置，入口地址和向量模式按硬件编码生效。
+  "void w_satp(uint64 value);":
+    effects:
+    - 向当前hart的satp写入value。
+    post:
+    - 当前hart的satp可写字段按value设置；不会自动刷新TLB。
+  "void w_sscratch(uint64 value);":
+    effects:
+    - 向当前hart的sscratch写入value。
+    post:
+    - 当前hart的sscratch可写字段按value设置。
+  "uint64 r_time(void);":
+    pre:
+    - OpenSBI已允许S-mode读取time计数器。
+    effects: []
+    post:
+    - 返回当前64位硬件时间计数，不表示system_timer.ticks。
+  "void intr_on(void);":
+    pre:
+    - 当前hart不在push_off尚未配对退出的区域。
+    effects:
+    - 置当前hart的SSTATUS.SIE。
+    post:
+    - 只开启监督者全局中断位；不会开启被sie屏蔽的中断源。
+  "void intr_off(void);":
+    effects:
+    - 清当前hart的SSTATUS.SIE。
+    post:
+    - 当前hart的监督者全局中断关闭，其他sstatus位不变；OpenSBI的机器态服务不受影响。
+  "int intr_get(void);":
+    effects: []
+    post:
+    - SSTATUS.SIE置位返回1，否则返回0。
+  "uint64 r_sp(void);":
+    effects: []
+    post:
+    - 返回当前sp寄存器值。
+  "uint64 r_tp(void);":
+    effects: []
+    post:
+    - 返回当前tp寄存器值。
+  "uint64 r_ra(void);":
+    effects: []
+    post:
+    - 返回当前ra寄存器值。
+  "void w_tp(uint64 value);":
+    effects:
+    - 将当前hart的tp设置为value。
+    post:
+    - 后续tp读取获得value。
+  "void sfence_vma(void);":
+    effects:
+    - 执行sfence.vma zero, zero。
+    post:
+    - 当前hart的全部地址空间和ASID的本地地址转换缓存失效；其他hart不受影响。

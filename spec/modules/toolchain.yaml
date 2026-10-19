@@ -1,0 +1,13 @@
+module: toolchain
+owns:
+- Makefile
+- common.mk
+- kernel.ld
+rules:
+- 使用 RISC-V GCC/binutils 的 freestanding 内核构建，CPUNUM 与 NCPU 均为 2。
+- 内核链接到 0x80200000；通过 QEMU virt、130 MiB 内存和默认 OpenSBI 固件启动。
+- Lab3 只编译内核源码；头文件修改通过编译器依赖文件触发重编译。
+targets:
+  build: 编译内核并链接为 target/kernel/kernel-qemu.elf；遇编译或链接错误停止。
+  run: 先执行 build，再使用串口连接标准输入输出启动 QEMU。
+  clean: 清除 target 目录中的构建产物，保留源代码和文档。

@@ -1,0 +1,15 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>任务实验：移除 printf 锁后观察实际交错</title>
+<style>html{background:#f4f6f8}body{margin:0;padding:24px 28px;color:#172638;font:14px "Segoe UI","Microsoft YaHei",sans-serif;box-sizing:border-box;min-height:360px}h1{font-size:24px;margin:0 0 8px}p{margin:5px 0 12px;line-height:1.5;color:#4c5a6c}.meta{font-size:12px}section{border:1px solid #cfd9e5;border-radius:5px;overflow:hidden;margin:10px 0;background:white}h2{font-size:14px;margin:0;padding:8px 12px;background:#e9eef5;border-bottom:1px solid #d5deea}small{font-size:11px;font-weight:400;color:#52657b}pre{margin:0;padding:10px 12px;font:13px/1.45 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font:13px/1.35 Consolas,monospace;background:white}td,th{text-align:left;padding:5px 8px;border-bottom:1px solid #dce4ec}th{background:#e9eef5}.ok{color:#19633d;font-weight:600}</style>
+<h1>任务实验：移除 printf 锁后观察实际交错</h1><p class="meta">Lab1 · 2026-10-15 11:10:07 +0800 · QEMU 8.2.2 · GCC 13.3.0 · 128 MiB · 2 harts · BIOS none · TCG multi</p><p>仅在临时print.c中移除print_lk的获取和释放；UART逐字符push_off/pop_off仍保留。图中混合字符来自真实双核执行。</p><section><h2>printf-unlocked <small>SHA256 b46c922816242924…</small></h2><pre>RROWOW har hart=t=01 seq=0 pay seq=0 payload=load=ABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBABBBBBBBBBBBBBBBBBBBB AENDAAAAAAAAAAAAA
+AAAAROWAAAAAAAAAA hartAAAAAAAAAAAAAAAAAAA=1 AAseq=1 payload=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB END
+ROW hart=1 seq=2 payload=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB END
+ROW hart=1 seq=3 payload=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB END
+ROW hart=1 seq=4 payload=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB END
+ROW hart=1 seq=5 payload=BBBBBBBBBBBBBBBBBBBBABBBAABBBBBBBBABBBBBBAABBAAABBBAAABABBB END
+ROWBB hart=0 sBeq=1 payload=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBABBBBBBBBBBBB END
+AAAROW haAAArtA=1 seq=6 pAAAAAAAAAAAAAaylAAAAAA ENoad=BBBBBBD
+ROW hart=0 seq=2 paylBBoad=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAABBBBBBBBBAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB END
+[… 省略后续记录；完整输出见原始日志 …]
+ROW hart=0 seq=31 payload=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA END
+
+PRINTF RECORDS DONE</pre></section><p>运行器解析结果：共 64 行，完整记录 19 条，损坏行 45 行。</p></html>
