@@ -1,6 +1,6 @@
 #include "sys.h"
 
-int main()
+__attribute__((section(".text.entry"))) int main(void)
 {
     syscall(SYS_helloworld);
     syscall(SYS_helloworld);

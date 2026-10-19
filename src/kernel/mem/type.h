@@ -124,6 +124,11 @@ typedef pte_t *pgtbl_t;
 
 // 定义一个非常大的VA, 正常来说所有VA不得大于它
 #define VA_MAX (1ul << 38)
+#define USER_BASE ((uint64)PGSIZE)
+#define TRAMPOLINE (VA_MAX - PGSIZE)
+#define TRAPFRAME (TRAMPOLINE - PGSIZE)
+#define USTACK (TRAPFRAME - PGSIZE)
+#define KSTACK(i) (TRAMPOLINE - ((uint64)(i) + 1) * 2 * PGSIZE)
 // PGSIZE 继续保持 4096。
 #define VM_LEVEL_SIZE(level) (1ul << VA_SHIFT(level))
 #define HUGE_2M VM_LEVEL_SIZE(1)

@@ -23,7 +23,7 @@ static void printint(int xx, int base, int sign)
     uint32 x;
 
     if (sign && (sign = xx < 0))
-        x = -xx;
+        x = 0u - (uint32)xx;
     else
         x = xx;
 
@@ -130,10 +130,17 @@ volatile int panicked = 0;
 /* 报错并终止输出 */
 void panic(const char *s)
 {
-    printf("panic! %s\n", s);
-    panicked = 1;
+    intr_off();
+    // 不获取printf锁：panic可能发生在持锁或trap上下文中。
+    const char *prefix = "panic! ";
+    while (*prefix)
+        uart_putc_sync(*prefix++);
+    if (s != NULL)
+        while (*s)
+            uart_putc_sync(*s++);
+    uart_putc_sync('\n');
     while (1)
-        ;
+        asm volatile("wfi");
 }
 
 /* 如果不满足条件, 则调用panic */

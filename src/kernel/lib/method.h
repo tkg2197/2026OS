@@ -10,6 +10,7 @@ void assert(bool condition, const char *warning);
 /* uart.c: UART驱动函数 */
 
 void uart_init(void);
+void uart_enable_rx_interrupt(void);
 void uart_putc_sync(int c);
 int uart_getc_sync(void);
 void uart_intr(void);

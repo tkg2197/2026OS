@@ -40,3 +40,6 @@ void vm_mappages_huge(pgtbl_t pgtbl, uint64 va, uint64 pa,
 uint32 vm_count_pgtbl(pgtbl_t pgtbl);
 
 void vm_freewalk(pgtbl_t pgtbl);
+
+// 未发布用户页表的可恢复单页映射；失败不留下本次新建的中间页。
+bool vm_try_mappage(pgtbl_t pgtbl, uint64 va, uint64 pa, int perm);

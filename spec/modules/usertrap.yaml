@@ -22,23 +22,31 @@ functions:
     - 用户现场完整保存在 trapframe 中且此后不再使用用户页表；进入处理入口时 sp 为当前进程内核栈顶、tp 为 hart ID、satp 为内核页表。
     - 进入处理入口时 a0 仍为 TRAPFRAME，该地址在内核页表中无效，处理函数不得解引用它，只能经 proc.tf 访问同一页。
     - 保存过程只使用 sscratch 和 trapframe 且不修改其前五槽，不读写其他内核对象。
-
   void trap_user_handler(void):
     pre:
-    -
+    - 由user_vector完成用户整数寄存器保存、内核satp切换和TLB刷新后进入；当前sp为进程内核栈、tp为内核hart ID。
+    - 硬件记录SPP=0且SIE=0，myproc非NULL；C只能经myproc()->tf的内核恒等映射访问现场，不解引用传入a0的TRAPFRAME别名。
     effects:
-    -
+    - 先把stvec改成kernel_vector，读取scause，把sepc保存在tf.user_to_kern_epc。
+    - 'cause=8时将保存epc加4；a7==SYS_helloworld则输出proczero: hello world!并在tf.a0写0，否则写(uint64)-1。'
+    - cause为中断5或9时分别复用timer_interrupt_handler或external_interrupt_handler，保持用户epc不变。
+    - 其他用户原因输出pid、完整scause/sepc/stval，清cpu.proc，开中断并停在wfi循环，停止故障用户执行。
+    - 可恢复trap最终调用trap_user_return准备返回。
     post:
-    -
-
+    - 正常trap返回U-mode，整数寄存器与栈恢复，仅系统调用结果a0和ecall后PC按约定改变。
+    - 用户未知调用返回-1；用户执行错误不panic、不反复执行故障指令，内核可继续响应时钟/UART。
+    - 没有exit与调度器，故障进程资源暂时保留，后续实验再实现生命周期回收。
   void trap_user_return(void):
     pre:
-    -
+    - 在内核页表下执行，myproc非NULL；tf和用户页表完整；trampoline在内核与用户页表相同高VA映射到同一物理页。
+    - 关中断嵌套深度为0，tf.user_to_kern_epc及用户寄存器表示目标用户现场。
     effects:
-    -
+    - intr_off后填tf的内核satp、内核栈顶、trap_user_handler和hart ID；stvec写TRAMPOLINE+(user_vector-trampoline)。
+    - 清sstatus.SPP和SIE、置SPIE；sepc写保存的用户epc。
+    - 经TRAMPOLINE+(user_return-trampoline)以(TRAPFRAME,MAKE_SATP(proc.pgtbl))调用跳板；跳板切用户页表并刷新后恢复整数寄存器。
     post:
-    -
-
+    - 本函数不返回；sret进入U-mode目标PC和栈，用户页表有效，sscratch恢复为TRAPFRAME。
+    - 从改变stvec到用户切换完成始终禁止S-mode中断，避免不完整现场被误用；下次用户trap进入user_vector。
   user_return:
     pre:
     - 由 trap_user_return 在 TRAMPOLINE 中以 (TRAPFRAME, MAKE_SATP(proc.pgtbl)) 调用；调用时内核页表有效，用户寄存器已保存在 trapframe 中。

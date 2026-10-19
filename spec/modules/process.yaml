@@ -8,8 +8,7 @@ state:
   cpus: 每hart的当前进程指针与保存的内核上下文；由OpenSBI交付并写入tp的hart ID索引，有效范围为0..NCPU-1。
   proczero: 唯一用户进程，拥有用户页表、trapframe、用户代码页和栈页；使用预先映射的 KSTACK(0)。
   context_t: 依次为 ra、sp、s0..s11 的 64 位槽；C 与 swtch 汇编布局一致。
-  user_trapframe_t: 288 字节：前五槽为 kernel_satp/kernel_sp/kernel_trap/epc/kernel_hartid，其后按给定头文件排列全部用户整数寄存器；a0
-    偏移112，t6偏移280。
+  user_trapframe_t: 288 字节：前五槽为 kernel_satp/kernel_sp/kernel_trap/epc/kernel_hartid，其后按给定头文件排列全部用户整数寄存器；a0 偏移112，t6偏移280。
   trapframe_alias: trapframe 页在用户页表中以 TRAPFRAME 出现（RW，不含 PTE_U）；内核页表不映射 TRAPFRAME，内核经恒等映射以物理地址访问同一页，proc.tf 保存该内核可见地址。
 rules:
 - 首进程构造完成前不得发布为运行状态；失败不留下半初始化进程。
@@ -23,30 +22,36 @@ functions:
     effects: []
     post:
     - 返回 tp 对应的 cpus 元素；无效 hart id 是内核不变量错误。
-
   proc_t *myproc(void):
     pre:
     - 当前在S-mode，tp 保存有效 hart ID。
     effects: []
     post:
     - 返回当前 hart 的进程指针，允许 NULL；cpu.proc 只在首进程构造完成后写入，读取无需关中断。
-
   pgtbl_t proc_pgtbl_init(uint64 trapframe):
     pre:
-    -
+    - 物理页分配器已初始化；trapframe是调用者拥有的一页清零内核物理页，地址页对齐且可由内核恒等映射访问。
+    - trampoline物理代码页由链接脚本对齐为一页，调用者独占尚未发布的用户页表构造过程。
     effects:
-    -
+    - 可失败地申请一个清零内核根页表，使用vm_try_mappage为TRAMPOLINE建立RX且无PTE_U映射、为TRAPFRAME建立RW且无PTE_U映射。
+    - 任一阶段失败时先移除本次成功的叶项，再回收全部本次页表页；借用的trampoline和trapframe物理页不释放。
     post:
-    -
-
+    - 成功返回独占用户根页表，仅有两处受保护叶映射，零页未映射；调用者继续添加代码和栈。
+    - 失败返回NULL；本次申请的页表页全部归还，传入trapframe所有权仍由调用者持有。
   void proc_make_first(void):
     pre:
-    -
+    - 只由hart0单次调用，myproc为NULL；物理页、内核页表、堆和共享trap已初始化，KSTACK(0)已映射为一页内核RW。
+    - 默认initcode为从USER_BASE执行的一页以内平坦二进制；本地stvec、PLIC、SBI时钟环境就绪，关中断嵌套深度为0。
     effects:
-    -
+    - 按tf、用户页表、用户栈、用户代码的顺序分配资源；tf和页表来自内核池，栈和代码来自用户池；全部使用可失败接口。
+    - 映射USTACK为RWU，USER_BASE为RXU；复制镜像后fence.i，用户零页不映射；填写pid=0、heap_top=USER_BASE+PGSIZE、ustack_npage=1。
+    - tf.epc=USER_BASE，tf.sp=USTACK+PGSIZE；kstack=KSTACK(0)，ctx.sp为内核栈顶，ctx.ra=trap_user_return。
+    - 只有全部就绪后关闭本hart中断并发布cpu.proc，再swtch(&cpu.ctx,&proc.ctx)进入用户返回路径。
+    - 失败按所有权撤销叶项、释放用户代码/栈、内核tf及页表页，清空proczero；不发布cpu.proc，不释放预先存在的KSTACK映射。
     post:
-    -
-
+    - 成功经swtch与trap_user_return进入用户态，不返回原调用点；cpu.proc指向完整proczero。
+    - 可恢复失败打印创建失败并返回，cpu.proc仍为NULL，两类页池容量均恢复为调用前值；main继续wfi并处理设备。
+    - 本阶段无多进程scheduler；意外swtch返回是内核不变量错误。
   void swtch(context_t *old, context_t *new):
     pre:
     - old/new 是互不重叠的可读写有效 context_t；目标 sp/ra 有效。

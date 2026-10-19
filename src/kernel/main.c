@@ -2,8 +2,10 @@
 #include "lib/mod.h"
 #include "mem/mod.h"
 #include "trap/mod.h"
+#include "proc/mod.h"
 
 extern void _entry(void);
+extern uint64 initial_hart;
 
 static volatile int initialized = 0;
 static int ready = 0;
@@ -114,6 +116,9 @@ void main(void)
 
         for (uint64 id = 1; id < NCPU; id++)
         {
+            // 冷启动hart若为1，它已经在等待共享初始化，无需再次启动。
+            if (id == __atomic_load_n(&initial_hart, __ATOMIC_ACQUIRE))
+                continue;
             sbi_ret_t ret = sbi_hart_start(id, (uint64)_entry, 0);
             assert(ret.error == SBI_SUCCESS,
                    "sbi_hart_start failed");
@@ -126,6 +131,7 @@ void main(void)
 
         kvm_inithart();
 
+        printf("cpu %d is booting with OpenSBI!\n", (int)hartid);
         printf("cpu %d: paging enabled, satp=%x\n",
                (int)hartid, r_satp());
     }
@@ -139,6 +145,12 @@ void main(void)
 
     // 设置本CPU的第一次时钟事件, 并打开S-mode时钟中断
     timer_init();
+
+    if (hartid == 0)
+    {
+        uart_enable_rx_interrupt();
+        proc_make_first();
+    }
 
     while (1)
         asm volatile("wfi");

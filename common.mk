@@ -25,3 +25,5 @@ endif
 
 # 链接相关配置 
 LDFLAGS = -z max-page-size=4096
+
+CFLAGS += -march=rv64imac_zicsr_zifencei -mabi=lp64

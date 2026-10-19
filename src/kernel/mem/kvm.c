@@ -154,12 +154,16 @@ void kvm_init(void) {
     uint64 data = (uint64)KERNEL_DATA;
     uint64 begin = (uint64)ALLOC_BEGIN;
     uint64 end = (uint64)ALLOC_END;
+    extern char trampoline[];
     kernel_pgtbl = (pgtbl_t)pmem_alloc(true);
     vm_mappages(kernel_pgtbl, UART_BASE, UART_BASE, PGSIZE, PTE_R | PTE_W);
     vm_mappages(kernel_pgtbl, PLIC_BASE, PLIC_BASE, PLIC_SIZE, PTE_R | PTE_W);
     vm_mappages_huge(kernel_pgtbl, KERNEL_BASE, KERNEL_BASE, data - KERNEL_BASE, PTE_R | PTE_X);
     vm_mappages_huge(kernel_pgtbl, data, data, begin - data, PTE_R | PTE_W);
     vm_mappages_huge(kernel_pgtbl, begin, begin, end - begin, PTE_R | PTE_W);
+    vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+    uint64 stack = (uint64)pmem_alloc(true);
+    vm_mappages(kernel_pgtbl, KSTACK(0), stack, PGSIZE, PTE_R | PTE_W);
 }
 
 void kvm_inithart(void) {
@@ -249,4 +253,50 @@ void vm_freewalk(pgtbl_t pgtbl)
 {
     assert(pgtbl != NULL, "vm_freewalk: null page table");
     vm_free_level(pgtbl, 2);
+}
+
+// 用户页表在发布前由构造者独占；不拆分大页，也不覆盖已有映射。
+bool vm_try_mappage(pgtbl_t pgtbl, uint64 va, uint64 pa, int perm)
+{
+    if (pgtbl == NULL || va >= VA_MAX || ((va | pa) & (PGSIZE - 1)) ||
+        pa >= (1ull << 56) || (perm & ~(PTE_R | PTE_W | PTE_X | PTE_U)) ||
+        !(perm & (PTE_R | PTE_X)) || ((perm & PTE_W) && !(perm & PTE_R)))
+        return false;
+    pte_t *created[2];
+    pgtbl_t pages[2];
+    int count = 0;
+    for (int level = 2; level > 0; level--)
+    {
+        pte_t *slot = &pgtbl[VA_TO_VPN(va, level)];
+        if (*slot & PTE_V)
+        {
+            if (PTE_LEAF(*slot))
+                goto fail;
+        }
+        else
+        {
+            pgtbl_t child = pmem_try_alloc(true);
+            if (child == NULL)
+                goto fail;
+            created[count] = slot;
+            pages[count++] = child;
+            *slot = PA_TO_PTE(child) | PTE_V;
+        }
+        pgtbl = (pgtbl_t)PTE_TO_PA(*slot);
+    }
+    pte_t *leaf = &pgtbl[VA_TO_VPN(va, 0)];
+    if (*leaf & PTE_V)
+        goto fail;
+    *leaf = PA_TO_PTE(pa) | perm | PTE_V | PTE_A |
+            ((perm & PTE_W) ? PTE_D : 0);
+    __sync_synchronize();
+    return true;
+fail:
+    while (count > 0)
+    {
+        count--;
+        *created[count] = 0;
+        pmem_free((uint64)pages[count], true);
+    }
+    return false;
 }

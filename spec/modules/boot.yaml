@@ -10,7 +10,7 @@ state:
 rules:
 - 共享模块只由hart0初始化一次；所有有效hart都安装自己的页表和trap环境。
 - M-mode CSR、PMP、异常委派和CLINT由OpenSBI管理；内核不得直接配置或访问这些机器态资源。
-- hart0由OpenSBI初始启动，hart1由hart0通过SBI HSM扩展启动；HSM返回错误属于不可继续的启动失败。
+- OpenSBI可先交接任一hart；若先交接hart1，start通过HSM启动hart0并使hart1等待；否则hart1由hart0通过SBI HSM扩展启动；HSM返回错误属于不可继续的启动失败。
 functions:
   _entry:
     pre:
@@ -18,12 +18,12 @@ functions:
     effects:
     - 以a0选择CPU_stack中的4096字节槽并把sp设置为该槽顶端，保持a0作为start的hartid参数。
     post:
-    - 当前hart使用独立早期栈调用start(hartid)；若start意外返回则停在wfi循环。
-  void start(uint64 hartid):
+    - 当前hart使用独立早期栈调用start(hartid, a1)；若start意外返回则停在wfi循环。
+  void start(uint64 hartid, uint64 opaque):
     pre:
     - 由_entry在S-mode调用，hartid来自OpenSBI且位于0..NCPU-1。
     effects:
-    - 将satp清零并执行sfence.vma，把hartid写入tp，然后调用main。
+    - 将satp清零并执行sfence.vma，把hartid写入tp，；固件a1非零时登记初始hart，必要时启动hart0，然后调用main。
     post:
     - main开始时仍在S-mode和bare地址转换状态，tp稳定保存当前hart ID；start不执行mret且不返回。
   void main(void):

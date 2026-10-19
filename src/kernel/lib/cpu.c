@@ -5,6 +5,7 @@ static cpu_t cpus[NCPU];
 cpu_t *mycpu(void)
 {
     int hartid = r_tp();
+    assert(hartid >= 0 && hartid < NCPU, "mycpu: invalid hart ID");
     return &cpus[hartid];
 }
 
@@ -15,6 +16,5 @@ int mycpuid(void)
 }
 proc_t *myproc(void)
 {
-    int hartid = r_tp();
-    return cpus[hartid].proc;
+    return mycpu()->proc;
 }

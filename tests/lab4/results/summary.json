@@ -1,0 +1,103 @@
+{
+  "default_two_ecalls_echo_layout": "PASS",
+  "incremental_dependencies": "PASS",
+  "unknown_minus_one_and_known_zero": "PASS",
+  "all_integer_registers_stack_user_timer_uart": {
+    "status": "PASS",
+    "user_timer_events": 36
+  },
+  "zero-read": {
+    "status": "PASS",
+    "scause": 13,
+    "uart_after_fault": true
+  },
+  "zero-write": {
+    "status": "PASS",
+    "scause": 15,
+    "uart_after_fault": true
+  },
+  "code-write": {
+    "status": "PASS",
+    "scause": 15,
+    "uart_after_fault": true
+  },
+  "trapframe-read": {
+    "status": "PASS",
+    "scause": 13,
+    "uart_after_fault": true
+  },
+  "trampoline-read": {
+    "status": "PASS",
+    "scause": 13,
+    "uart_after_fault": true
+  },
+  "kernel-read": {
+    "status": "PASS",
+    "scause": 13,
+    "uart_after_fault": true
+  },
+  "stack-execute": {
+    "status": "PASS",
+    "scause": 12,
+    "uart_after_fault": true
+  },
+  "illegal-instruction": {
+    "status": "PASS",
+    "scause": 2,
+    "uart_after_fault": true
+  },
+  "allocation-failure-1": "PASS: no published process, both page pools restored",
+  "allocation-failure-2": "PASS: no published process, both page pools restored",
+  "allocation-failure-3": "PASS: no published process, both page pools restored",
+  "allocation-failure-4": "PASS: no published process, both page pools restored",
+  "allocation-failure-5": "PASS: no published process, both page pools restored",
+  "allocation-failure-6": "PASS: no published process, both page pools restored",
+  "allocation-failure-7": "PASS: no published process, both page pools restored",
+  "allocation-failure-8": "PASS: no published process, both page pools restored",
+  "oversized_image_link_rejected": "PASS",
+  "production_source_unchanged": true,
+  "source_sha256": {
+    "src/kernel/main.c": "2700bcb718a82f742edc7e64f03414c5e27df205b22811e91e700e60f7979b50",
+    "src/user/initcode.c": "1e9e32e74d40f79835a7d18f687495a679aa445e2f6e1a5edd20ebeb95c15ceb",
+    "src/user/syscall_num.h": "208b1c20a7877ff40f56a376c74945c3cef07edfd0ecd4f14318bb55a6c4cff5",
+    "src/user/sys.h": "107e08024ed745f972135676fbf856aec604f75673158b3fd24a261c8e288074",
+    "src/user/syscall_arch.h": "e804b6d2e601536aae68248278a5cf7468fbf819f75b638b40288e5593071e05",
+    "src/kernel/mem/pmem.c": "80aef7eb6998cdb3ea4a35014455d375b4e299bca6731b990f57c4f10a10a0ad",
+    "src/kernel/mem/heap.c": "9d337102e06a19fb947128e371490e8c31a5f34332dc295fea38cd2ce8a390c6",
+    "src/kernel/mem/type.h": "c0f054b29db40c471736914ec7d6dd3a09f73043f662f8f27b607ba28a0bcd36",
+    "src/kernel/mem/mod.h": "b13f92b23a5d3eb453c02a4b1b3d09f6f1f5c474c2b885b8806bacd342cbdb85",
+    "src/kernel/mem/kvm.c": "4b5d18bc8a3dabbdaa34f03bf2a3d9124b014dd5e528649fc50fa3d9c1fe6275",
+    "src/kernel/mem/method.h": "ff8a379a857e057025c6f0eff4e3c149a79c7006e4e9b2a65390f6a2b2b56f44",
+    "src/kernel/lock/spinlock.c": "a87f82dd2fb6f001b1f6204b8b516c37fbbf3bf919d9fb76d7cc63a80c9cb96e",
+    "src/kernel/lock/type.h": "e9e3d08858bfb56a45195352854540a1956f02cbcce4123c35d72e9906e4f525",
+    "src/kernel/lock/mod.h": "b74f6be3a66e8ba09c84298444fb376a3bc1f81e45679d9cdc43daf39b173a67",
+    "src/kernel/lock/method.h": "55b799ea9cb9492095e459a97275cec404b5ad07d88aaca681f714a4438d20ca",
+    "src/kernel/boot/entry.S": "1218ec623471d808facb3b192a5368e760d49f43d16cf6ca93a3d4a335d346d8",
+    "src/kernel/boot/start.c": "a147ab91012d1807497911b0e16f80243c1bfd2083a2bf644f21970bb3a8a4ff",
+    "src/kernel/lib/cpu.c": "1fd3cee6ee3de8e507dae8a82b85562eab70f42e07c23a841b714f244f28f311",
+    "src/kernel/lib/utils.c": "8e56f12fa51dc2ef99881e356a3c35aa504b90c826c40b99a36b1a012de669cc",
+    "src/kernel/lib/uart.c": "4e2364d5bfbf4d8a6aae133d2bb53336bcd76530fa705ce515962a5bedd2d61c",
+    "src/kernel/lib/type.h": "270a1e12194ca07521b1859163630645dd8ece10e507392c8af88c699ba32f01",
+    "src/kernel/lib/mod.h": "600ed0cdcf34f20935208f3b928416463e6f56892d5aa728f3af59bfe1407c4f",
+    "src/kernel/lib/print.c": "a26344a9f743340860f38e57f3908a0572ad0e07a7c1a57a665dab706f86ce32",
+    "src/kernel/lib/method.h": "b96ac3027aa414fc862b8d970694244810709b6858df14ed2dfb7e59d10a69d8",
+    "src/kernel/proc/proc.c": "e6203e1a919c7ee4c55446810181b2e73984c41eeb039a5f9fa4d28167b8e027",
+    "src/kernel/proc/type.h": "6f7ca9e0a71095cde0b55bd4c58a3ad1340c1a719a01f6d227e9855c3ec58be7",
+    "src/kernel/proc/mod.h": "e71385eda6ea6747de0cd91c591aa1a80b0958017e9deefc571e8e1c5d6305e0",
+    "src/kernel/proc/swtch.S": "33452f99bf40d405b006bad61ae87415e1e090ffa25a02fab248051d17d0a55c",
+    "src/kernel/proc/method.h": "c15049b122d30b31760751ee6dcc6d41149ecc89f49f6f358afb4495779760a4",
+    "src/kernel/arch/sbi.c": "296b270cccccecdf11157debd76be4694fb7074f4e57c21c2a10169320c20ed3",
+    "src/kernel/arch/type.h": "a5c192f8df55f934ab97b24479e9bcfb38c0759fe5d0c78419cce7b2e6e37d85",
+    "src/kernel/arch/mod.h": "81847d07db0765e84f374d7ae54ebeb40e36bad5bb6c97aa69eeaf642261ddac",
+    "src/kernel/arch/method.h": "2951095d68d25f4d3bc3449912a3dd95c7371cb39e0854c8bef51f1bd8fb482a",
+    "src/kernel/trap/trampoline.S": "5b92ae693bea308c6c4f3ee4d4ca8e9f242d75de47e9b814a564000097f70690",
+    "src/kernel/trap/trap_kernel.c": "099008df90b05c13bd7997606bf3962bda06956ead1b4680de501ebd81b0f6b1",
+    "src/kernel/trap/timer.c": "a2b25141c959703ffbb6a2ff467d9085c10c746d47084c575518577a7562b9cd",
+    "src/kernel/trap/type.h": "a0bba4cb82b612e8f875fc474a0eadd03a4fcd56f71f5775c86d2760f16fc2ac",
+    "src/kernel/trap/plic.c": "e585e508fced795c24df2c838c4a071a7588c63da3a55fbad4cc2bdade56d53f",
+    "src/kernel/trap/trap_user.c": "4bacefae528fa640ada57ceacec7ca7b6fc7ad5faaa64d38116ece12a34af8df",
+    "src/kernel/trap/mod.h": "46a9629ad8e499b21f7ec27d2cbf414c1f157c510214d674485197bff3554a5c",
+    "src/kernel/trap/trap.S": "b509c7244cfbb13fb7ced5b20de396f71ec8b056b25e42e352660e0b57405aca",
+    "src/kernel/trap/method.h": "604addc578f464afeb26542a9423c30c34894b54b3ba02aab5a5747fbd48d6ed"
+  }
+}

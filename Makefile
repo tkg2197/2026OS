@@ -93,14 +93,17 @@ $(TARGET):
 
 # 编译规则：将汇编文件(.S)编译为目标文件(.o)
 $(TARGET)/kernel/%.o: $(KernelPath)/%.S
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # 编译规则：将C文件(.c)编译为目标文件(.o)
 $(TARGET)/kernel/%.o: $(KernelPath)/%.c
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # 编译用户态程序
 $(TARGET)/user/%.o: $(UserPath)/%.c
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # 链接生成用户程序ELF (main位于USER_BASE, 由user.ld保证)
@@ -127,3 +130,7 @@ $(ELFKernel): $(KernelOBJ) $(KERNEL_LD)
 clean:
 	rm -rf target
 	rm -f $(InitcodeHeader)
+
+.PHONY: all build run qemu debug
+all: build
+qemu: run
