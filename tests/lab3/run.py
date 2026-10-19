@@ -78,6 +78,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='os-lab3-tests-') as temp:
         parent = Path(temp)
         work = copy_source(parent, 'baseline')
+        change(work, 'src/kernel/main.c', '        uart_enable_rx_interrupt();',
+               '    { uart_enable_rx_interrupt(); assert(ReadReg(IER) == 1, "UART RX IER"); }')
         build(work, 'baseline')
         data = run(work, 'baseline', send=True)
         assert b'panic!' not in data

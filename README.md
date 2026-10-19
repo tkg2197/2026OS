@@ -15,7 +15,7 @@
 |时钟中断|每hart通过SBI TIME首次预约并在每次中断后重新预约；只由hart0更新加锁共享ticks|
 |PLIC/UART外部中断|设置SEIE，按当前hart claim，分派UART，非零IRQ恰好complete一次；未知IRQ诊断后继续|
 |回显、退格、换行|普通字符原样；BS/DEL输出08 20 08；CR和LF分别输出0d 0a；循环排空接收FIFO|
-|初始化顺序|共享资源先初始化，本地stvec与PLIC就绪后开中断，UART接收IER最后开启|
+|初始化顺序|共享资源先初始化，本地stvec与PLIC就绪后开中断，UART接收IER最后开启，RX为bit0，TX为bit1；验收读取IER确认仅开启RX|
 |补充测试和错误检查|覆盖双核、3档间隔、连续输入、无IRQ/未知IRQ/complete规则、非法指令诊断|
 
 额外修复了实际运行发现的两个必要问题：并行make时输出目录的创建竞争；OpenSBI随机先交接hart1时原入口会永久等待。现在start区分固件非零a1和HSM的0，必要时先启动hart0，仍由hart0执行共享初始化。panic改为关闭本hart中断后直接写UART，避免持printf锁时诊断死锁。继承的%p是完整64位指针，已纠正规格中不一致的描述。

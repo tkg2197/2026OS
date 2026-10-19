@@ -2,21 +2,21 @@
   "baseline_echo_dual_hart": "PASS",
   "timer-500000": {
     "status": "PASS",
-    "hart0_events": 40,
-    "hart1_events": 40,
-    "median_time_counts": 502966
+    "hart0_events": 37,
+    "hart1_events": 37,
+    "median_time_counts": 545048.0
   },
   "timer-1000000": {
     "status": "PASS",
-    "hart0_events": 20,
-    "hart1_events": 20,
-    "median_time_counts": 1001748
+    "hart0_events": 19,
+    "hart1_events": 19,
+    "median_time_counts": 1056488.0
   },
   "timer-2000000": {
     "status": "PASS",
     "hart0_events": 10,
     "hart1_events": 10,
-    "median_time_counts": 2003348
+    "median_time_counts": 2005937
   },
   "irq_contract": "PASS",
   "kernel_fault_diagnostic": "PASS",
@@ -38,7 +38,7 @@
     "src/kernel/lib/cpu.c": "792eab5acb9bb7bea93be16e2136cbd7f3c7e27750f1bc4dfbdd1c3edc2fef2b",
     "src/kernel/lib/utils.c": "8e56f12fa51dc2ef99881e356a3c35aa504b90c826c40b99a36b1a012de669cc",
     "src/kernel/lib/uart.c": "4e2364d5bfbf4d8a6aae133d2bb53336bcd76530fa705ce515962a5bedd2d61c",
-    "src/kernel/lib/type.h": "809965de6bcacd5d003c90f562c9a2597ed7dd840eb68ea7eb491e4d63b2d065",
+    "src/kernel/lib/type.h": "e2892574efed2eff2f6d77d7bbabd71f230ac1fa9930bcdbc54b15861ebc207c",
     "src/kernel/lib/mod.h": "600ed0cdcf34f20935208f3b928416463e6f56892d5aa728f3af59bfe1407c4f",
     "src/kernel/lib/print.c": "a26344a9f743340860f38e57f3908a0572ad0e07a7c1a57a665dab706f86ce32",
     "src/kernel/lib/method.h": "f2e57b5d0661079c781fd75b13de34609db8a4c8724ba59cce8bf7158a587916",
