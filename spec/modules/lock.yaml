@@ -10,7 +10,8 @@ state:
   spinlock_t.owner: 持有锁的 hart ID；未持有时为 ~0UL。
   spinlock_t.name: 由调用者保留存储的诊断名称。
 rules:
-  - 每个hart的tp在内核中保存OpenSBI通过a0交付的稳定hart ID，范围为0..NCPU-1；当前NCPU为2。
+  - 每个hart的tp在内核中保存OpenSBI通过a0交付的稳定物理hart ID；qemu有效范围为0..1，FIRST_HART=0、NCPU=2；vf2的FIRST_HART、NCPU由学生填写。
+  - 按物理hart ID直接索引中断状态槽位，不转换为逻辑CPU编号；FIRST_HART以下的槽位不运行。
   - 同一 hart 的 push_off 与 pop_off 必须配对；最外层保存中断状态，最后一层退出才允许恢复。
   - 每次成功 acquire 增加一层关闭中断深度，对应 release 减少一层；不同锁嵌套遵守同一协议。
   - 非递归自旋锁只由持有 hart 释放；acquire/release 的内存屏障使临界区写入对下一个持有者可见。

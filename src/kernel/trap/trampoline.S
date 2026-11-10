@@ -57,7 +57,7 @@ user_vector:
 #------------------sd 过程 (end)-------------------------
 
         # 恢复之前保存的内核执行环境
-        # 1. 内核栈指针
+        # 1. 内核栈指针 
         # 2. hartid信息
         # 3. 内核页表
         # 之后跳转到 trap_user_handler
@@ -73,6 +73,7 @@ user_vector:
         # 将内核页表写入satp寄存器
         # 切换页表后a0指向的地址实效, 所以所有ld操作都要在这之前完成
         ld t1, 0(a0)
+        sfence.vma zero, zero
         csrw satp, t1
         sfence.vma zero, zero
 
@@ -86,13 +87,14 @@ user_vector:
 user_return:
 
         # 切换到用户页表
+        sfence.vma zero, zero
         csrw satp, a1
         sfence.vma zero, zero
 
 #---------------------ld 过程 (begin)----------------------
-
+        
         ld t0, 112(a0)
-        csrw sscratch, t0
+        csrw sscratch, t0 
 
         ld ra, 40(a0)
         ld sp, 48(a0)

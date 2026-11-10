@@ -1,0 +1,111 @@
+lab: 5
+goal: 在Lab4首用户进程基础上提供用户内存复制、动态堆栈、mmap及统一系统调用。
+requires:
+  - Lab4的内存、锁、trap、进程上下文、用户镜像与trampoline机制。
+  - 内存模块提供可恢复页分配；页表创建与映射失败可观察并回滚，不能将正常资源不足作为panic。
+  - VF2使用现有OpenSBI/U-Boot，支持TIME/HSM及booti；交接时仅启动hart进入_entry，其余有效hart处于可由HSM启动的状态。
+  - VF2的UART0由固件提供且能正常输出；内核继承固件串口配置，不重配波特率。timebase以手册或DTB为准。
+  - VF2用手册、DTB和bdinfo确认DRAM与内核管理窗口，固件、运行中的U-Boot及保留区不得占用该窗口，匹配板卡的DTB放在窗口外；不满足时停止启动。
+  - Lab2/Lab4 patches保留历史QEMU基线；本Lab5平台增量覆盖其固定hart0、核数、地址、UART/PLIC及定时参数要求。
+  - 交付保留所有学生空缺；start的w_tp/main、内存页表、锁、打印、timer/trap分派、首进程、Lab5业务以及VISIONFIVE2平台常量仍由学生完成。以下原业务及标明学生完成后的实板场景是实验验收要求。
+changes:
+  - module: kernel/boot
+    functions: ['void main(void);']
+    change: 在首进程创建前初始化mmap节点池，启动核boot_hartid直接切入唯一用户进程，辅助hart完成本地初始化后停驻；该实验流程留给学生完成。
+  - module: kernel/process
+    functions: ['pgtbl_t proc_pgtbl_init(uint64 trapframe);', 'void proc_make_first(void) __attribute__((noreturn));']
+    change: 创建时发布一致的heap_top、ustack_npage、mmap状态，资源不足时清理未发布资源。
+  - module: kernel/uvm
+    functions: ['int uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len);', 'int uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len);', 'int uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen);', 'uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len);', 'uint64 uvm_heap_ungrow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len);', 'int64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr);', 'int uvm_copy_pgtbl(pgtbl_t old, pgtbl_t new, uint64 heap_top, uint64 ustack_npage, mmap_region_t *mmap);', 'void uvm_destroy_pgtbl(pgtbl_t pgtbl);']
+    change: 实现权限受控逐页复制、可回滚堆栈增长、独立页表复制及所有权明确的销毁。
+  - module: kernel/uvm
+    functions: ['void mmap_init(void);', 'mmap_region_t *mmap_region_alloc(void);', 'void mmap_region_free(mmap_region_t *mmap);', 'uint64 uvm_mmap_find(mmap_region_t *head_mmap, uint64 len, mmap_region_t **p_last_mmap, mmap_region_t **p_tmp_mmap);', 'uint64 uvm_mmap(uint64 begin, uint32 npages, int perm);', 'int uvm_munmap(uint64 begin, uint32 npages);']
+    change: 使用有序区间链管理mmap；统一地址/0返回值、节点耗尽NULL及完整覆盖的munmap事务。
+  - module: kernel/syscall
+    functions: ['void syscall(void);', 'uint64 sys_brk(void);', 'uint64 sys_mmap(void);', 'uint64 sys_munmap(void);', 'uint64 sys_copyin(void);', 'uint64 sys_copyout(void);', 'uint64 sys_copyinstr(void);', 'uint64 sys_printf(void);']
+    change: 建立固定ABI分发表，完整检查参数宽度并通过uvm访问用户地址。
+  - module: kernel/usertrap
+    functions: ['void trap_user_handler(void);', 'void trap_user_return(void) __attribute__((noreturn));']
+    change: 接入统一syscall及合法多页栈缺页增长；用户失败停止用户执行，ecall只推进epc一次。
+  - module: user/initcode
+    functions: ['int main(void);', 'static inline unsigned long mmap(void *start, unsigned long len);', 'static inline int munmap(void *start, unsigned long len);']
+    change: 提供与内核返回约定一致的用户封装及完整Lab5用户示例。
+  - module: toolchain
+    change: 用PLATFORM=qemu（默认）或vf2构建；产物及initcode.h按平台隔离，VF2提供带标准Image头的kernel-vf2.bin供booti加载；用户main仍位于USER_BASE。
+  - module: kernel/arch
+    change: 学生填写VISIONFIVE2下的NCPU、FIRST_HART；QEMU分支保持原值。
+  - module: kernel/memory
+    change: 学生填写VISIONFIVE2下的KERNEL_BASE、PTE_MACHINE；QEMU分支保持原值。
+  - module: kernel/trap
+    change: 学生填写VISIONFIVE2下的INTERVAL、PLIC_SCONTEXT；QEMU分支保持原值。
+  - module: kernel/console
+    change: 学生填写VISIONFIVE2下的Reg、UART_IRQ；QEMU分支保持原值。
+  - module: design
+    change: 学生填写machine.platforms.vf2的ram_base、kernel_base、managed_end、active_harts、hart_slots、timebase_hz。
+acceptance:
+  - scenario: 用户复制及字符串边界
+    inputs: 合法非对齐跨页缓冲区、不可读/不可写页、后续缺页、零长度、溢出地址，以及NUL在maxlen末位或不在范围内的字符串。
+    expected: 合法复制内容一致；权限或范围错误返回失败；后续页面失败允许目标已有前缀；字符串仅在范围内读取到NUL时成功。
+  - scenario: 堆与多页栈增长
+    inputs: brk查询、页内及跨页增长/收缩、边界越界请求，以及合法栈范围内一次跨多页的load/store缺页。
+    expected: 堆顶与映射保持一致，合法多页栈缺页补齐并重试原指令；非法请求返回失败，用户异常停止用户执行。
+  - scenario: 地址空间分配失败
+    inputs: 堆增长、栈增长、mmap或页表复制期间数据页、页表页或节点不足。
+    expected: 失败按接口返回，操作前映射与元数据保留，临时资源回收，不panic。
+  - scenario: mmap链及munmap覆盖
+    inputs: 自动选址、固定地址、重叠请求、相邻同权限/不同权限区间、前缀/后缀/中段/跨区间解除及含空洞解除。
+    expected: 区间有序非重叠，仅合并兼容相邻区间；合法解除正确裁剪拆分，含空洞或拆分资源不足时完全不改变映射和链。
+  - scenario: 页表复制与所有权销毁
+    inputs: 含代码、heap、stack、mmap及特殊映射的源页表，带独立trapframe的目标页表。
+    expected: 用户内容与权限相同且物理页独立；失败保留目标原有特殊映射；销毁回收用户页与页表页，不重复释放trapframe或trampoline。
+  - scenario: syscall与入口
+    inputs: 学生完成实验后，使用make build PLATFORM=qemu的两核镜像及make build PLATFORM=vf2的开发板镜像，传入已注册及未知编号、高位非零长度。
+    expected: a7/a0至a5/a0 ABI正确，未知编号失败，长度不截断接受；epc只推进4一次；两平台均从USER_BASE的main进入用户态。
+  - scenario: 模板交付时的平台构建与隔离
+    inputs: 不clean地依次构建qemu、vf2、qemu；执行make -n run、make run PLATFORM=vf2、make debug PLATFORM=vf2、make build PLATFORM=bad及make CPUNUM=1。
+    expected: >-
+      target/qemu和target/vf2各自包含内核/用户对象、用户镜像及user/initcode.h；ELF为kernel/kernel-<platform>.elf，VF2另有同目录bin。默认build不受.d文件影响；QEMU仍为virt、130M、-bios default、两核。VF2的run/debug非零并提示PLATFORM=vf2: use U-Boot booti，不连接设备；非法平台或非2的CPUNUM由make拒绝。原实验空缺和用户工作区语法错误可阻塞整树构建，须保留-Werror并单独记录，不能计为新增机制通过或填空绕过。
+  - scenario: 模板交付时的Image头与链接布局
+    inputs: 用实际entry.o、独立start/CPU_stack/boot_hartid和一页trampsec链接探针，检查两平台ELF及VF2 bin首64字节。
+    expected: VF2入口等于生成kernel.ld的.text起点，32位code0跳过64字节头、code1为nop；text_offset=0x200000，image_size=KERNEL_IMAGE_SIZE=ALLOC_BEGIN-ADDR(.text)，非零页对齐且包含BSS占用；flags=0、version=2、res1/res2/res3=0、magic64=0x5643534952、magic2=0x05435352（偏移0x38）。BSS边界8字节对齐，所有栈在内核占用区内，ALLOC_END等于入口加128MiB；bin不含128MiB分配区也不在头后填2MiB。QEMU入口0x80200000、ALLOC_END=0x88200000且无Image头。
+  - scenario: 模板交付时的首次入口与HSM
+    inputs: QEMU两核运行实际_entry和_entry_secondary的临时探针，loader把BSS哨兵预填0xdeadbeef；启动核将其改为0x12345678后以实际sbi_hart_start启动另一核。
+    expected: 首次入口清零哨兵并记录boot_hartid，次级入口保留新值和boot_hartid；hart0和1各输出一次PASS且使用各自4096字节栈槽后探针成功退出。无效hart在访问栈/共享数组前停驻；探针替代未完成start/main，不构成JH7110实测。若sbi.c存在孤立顶层全角字符，仅在/tmp副本排除该字符，保留三个SBI函数原文，工作区不改。
+  - scenario: 模板交付时的UART及PLIC地址机制
+    inputs: 宿主固定mmap UART页及PLIC区域，两种平台宏编译实际uart.c/plic.c，仅替代mycpuid、push_off/pop_off和panicked依赖；QEMU跑hart0/1，VF2跑学生填写的有效hart。
+    expected: QEMU S-context=2*hart+1，hart0 enable=0x0c002080写0x400、claim=0x0c201004。claim/complete不改邻近context。QEMU UART为字节步长1；初始化FIFO=7且IER=0，RX开放后IER=1。VF2的S-context、UART_IRQ、Reg由学生填写后，清零5个enable字再只使能UART；RAM探针只证明地址、访问宽度与控制路径。
+  - scenario: 模板交付时的时间与PTE平台约束
+    inputs: 用QEMU平台宏编译约束探针，核对INTERVAL及由现有PA_TO_PTE和权限构造的叶项。
+    expected: QEMU INTERVAL=1000000、timebase=10MHz、PTE_MACHINE=0。叶项增加PTE_MACHINE，非叶项仍仅PTE_V；perm仅接受R/W/X/U。
+  - scenario: 学生填写开发板平台常量
+    inputs: 填写src/kernel下VISIONFIVE2分支的NCPU、FIRST_HART、KERNEL_BASE、PTE_MACHINE、INTERVAL、PLIC_SCONTEXT、Reg、UART_IRQ，以及spec/design.yaml中machine.platforms.vf2各字段。
+    expected: 常量与开发板布局、timebase和PLIC/UART访问方式一致；QEMU分支数值不变；填写前make PLATFORM=vf2因空宏无法通过。
+  - scenario: 学生完成后的VF2文件加载
+    inputs: |
+      先保存串口日志，确认上述固件、UART、内存、timebase及板卡匹配DTB前提。
+      用mmc list、part list mmc <设备号>确认设备和分区；1:1只是示例，不执行存储写入。
+      setenv kernel_addr_r <与KERNEL_BASE一致的地址>
+      setenv fdt_addr_r <管理窗口外的DTB地址>
+      load mmc 1:1 ${kernel_addr_r} kernel-vf2.bin
+      load mmc 1:1 ${fdt_addr_r} <与板卡匹配的.dtb>
+      booti ${kernel_addr_r} - ${fdt_addr_r}
+    expected: 每次load都成功才继续；失败立即停止，不booti旧内存。核对booti传出的DTB位于管理窗口外。text_offset为相对DRAM起点的加载偏移，不是文件填充；内核不解析DTB，不使用go、不刷固件、不自动saveenv。
+  - scenario: 学生完成后的VF2 TFTP加载
+    inputs: |
+      沿用上一场景的kernel_addr_r/fdt_addr_r及全部固件和内存前提。
+      由实验网络配置ipaddr/serverip（DHCP或静态均可，不写死地址）。
+      tftpboot ${kernel_addr_r} kernel-vf2.bin
+      tftpboot ${fdt_addr_r} <与板卡匹配的.dtb>
+      booti ${kernel_addr_r} - ${fdt_addr_r}
+    expected: 每次tftpboot成功才继续，失败停止，不启动旧内容；匹配DTB仍在窗口外，不自动saveenv。
+  - scenario: 学生完成后的VF2任意启动hart事件
+    inputs: 满足固件前提，以手册或DTB中任一有效hart作为启动核交接，记录串口，输入A并持续观察各核timer和全局ticks；更换启动hart重复验收。
+    expected: 每个有效hart各启动一次，手册或DTB中不跑内核的hart无日志，boot_hartid等于实际启动hart；HSM错误包括already-started均报告失败，不降为少核。仅启动核创建并直接进入首用户，辅助hart驻留；UART输入走学生填写的UART_IRQ并按实验规则回显，无TX空中断风暴。每核持续重装timer，全局ticks仅由启动核约100ms增加一次。不支持booti/TIME/HSM、多个hart同时进入首次入口、UART时钟关闭均视为固件前提不符；timebase或保留区与填写值冲突时不运行镜像，报告实际值/冲突区间。
+  - scenario: 学生完成后的VF2 Sv39与Lab5业务
+    inputs: 完成原内存、trap、进程和Lab5实验，启用Sv39并执行唯一用户进程的复制、brk和mmap用例。
+    expected: UART首4KiB和完整PLIC_SIZE映射，叶PTE带硬件A/D，不因遗漏A/D额外缺页；本文件原有Lab5业务验收均满足。实板有效hart、串口、timer、Sv39及用户端到端必须另行记录实测，不以QEMU或宿主探针替代。
+references:
+  - https://docs.kernel.org/_sources/arch/riscv/boot-image-header.rst.txt
+  - https://docs.u-boot.org/en/latest/usage/cmd/booti.html
+  - https://github.com/torvalds/linux/blob/v6.12/arch/riscv/boot/dts/starfive/jh7110.dtsi
+  - https://docs.u-boot.org/en/v2024.04/board/starfive/visionfive2.html

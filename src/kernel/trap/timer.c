@@ -12,8 +12,8 @@ void timer_init(void)
 {
     // 注意顺序: 必须先设置首次定时事件, 再打开时钟中断开关
     // 否则stimecmp中可能残留着已经过期的值, 中断会立刻触发
-    sbi_ret_t ret = sbi_set_timer(r_time() + INTERVAL);
-    assert(ret.error == SBI_SUCCESS, "timer_init: SBI TIME failed");
+    if (sbi_set_timer(r_time() + INTERVAL).error != SBI_SUCCESS)
+        panic("sbi_set_timer");
 
     // 使能S-mode时钟中断 (sie中的STIE位)
     w_sie(r_sie() | SIE_STIE);
@@ -27,7 +27,7 @@ void timer_create(void)
 }
 
 // 时钟滴答: 更新共享的滴答计数
-// 多核情况下只允许CPU-0调用, 否则ticks会涨得比时钟还快
+// 多核情况下只允许启动核调用, 否则ticks会涨得比时钟还快
 void timer_update(void)
 {
     spinlock_acquire(&system_timer.lk);

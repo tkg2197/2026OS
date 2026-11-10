@@ -25,13 +25,21 @@
 #define LSR_TX_IDLE (1 << 5)    // THR can accept another character to send
 
 // 读写寄存器的宏定义
-#define Reg(reg) ((volatile unsigned char *)(UART_BASE + reg))
+#ifdef VISIONFIVE2
+#define Reg(reg) ((volatile uint32 *)(UART_BASE + 4u * (reg)))
+#else
+#define Reg(reg) ((volatile unsigned char *)(UART_BASE + (reg)))
+#endif
 #define ReadReg(reg) (*(Reg(reg)))
 #define WriteReg(reg, v) (*(Reg(reg)) = (v))
 
 // UART 相关
 #define UART_BASE 0x10000000ul
+#ifdef VISIONFIVE2
+#define UART_IRQ 32
+#else
 #define UART_IRQ 10
+#endif
 
 // 帮助
 #define MAX(a, b) ((a) > (b) ? (a) : (b))                               // 取大
@@ -42,7 +50,7 @@
 typedef struct cpu
 {
     int noff;      // 关中断的深度
-    int origin;    // 第一次关中断前的状态
+    int intena;    // 第一次关中断前的状态
     proc_t *proc;  // cpu上运行的进程
     context_t ctx; // 内核自身上下文
 } cpu_t;

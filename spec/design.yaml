@@ -1,21 +1,48 @@
-system: RV64GC 单体教学内核：Lab4 首个用户进程与用户陷入闭环。
+system:
+  name: xv6教学内核Lab5
+  language: C与RISC-V汇编
+  stage: 用户虚拟内存与系统调用
 machine:
-  board: QEMU virt
-  firmware: OpenSBI（QEMU -bios default），以 S-mode 将控制权交给内核。
-  memory: QEMU提供130MiB物理内存；0x80000000起的前2MiB保留给OpenSBI，内核从0x80200000使用其余128MiB。
-  harts: CPUNUM与NCPU均为2；hart0由OpenSBI首先进入，hart0通过SBI HSM启动hart1并创建唯一用户进程。
-mechanisms:
-- Sv39内核/用户页表
-- 独立内核栈与trapframe
-- swtch和trampoline
-- OpenSBI HSM多核启动与TIME定时服务
-- 用户ecall、S-mode时钟中断和PLIC/UART外部中断
+  model: QEMU virt（默认）或StarFive VisionFive2（JH7110）
+  default_platform: qemu
+  isa: RV64GC
+  abi: lp64d
+  memory: 128MiB
+  page_size: 4096
+  harts:
+    default: 2
+    allowed: [2]
+    scope: 仅描述QEMU运行核数，CPUNUM固定为2；VF2的hart_slots由学生查阅手册或DTB后填写，不是QEMU运行核数。
+  platforms:
+    qemu:
+      ram_base: 0x80000000
+      kernel_base: 0x80200000
+      managed_end: 0x88200000
+      active_harts: [0, 1]
+      hart_slots: 2
+      timebase_hz: 10000000
+    vf2:
+      ram_base: 0x40000000
+      kernel_base: 0x40200000
+      managed_end: 0x48200000
+      active_harts: [1, 2, 3, 4]
+      hart_slots: 5
+      timebase_hz: 4000000
 rules:
-- 各模块契约共同约束系统；头文件提供类型与ABI，不能替代行为契约。
-- 用户零页不映射；用户页表不暴露内核可写资源。
-- 先建立内存和trap环境，再发布首进程；其他hart只在共享初始化发布后访问共享模块。
-- 内核始终运行在S-mode，不直接访问M-mode CSR或CLINT；机器态资源由OpenSBI代理。
+  - 本规范定义阶段需求，源码与旧文本的差异按本规范修正。
+  - 沿用Lab4内核内存、锁、trap及上下文切换；Lab5首用户进程由boot_hartid直接swtch，辅助hart留在内核。
+  - 进程地址空间以heap_top、ustack_npage和mmap链描述，元数据只在映射操作成功后发布。
+  - 用户输入或资源不足返回服务失败；无法恢复的用户异常停止该用户程序；内核不变量错误panic。
+  - 映射修改失败保留操作前映射及元数据并回收临时资源；用户copy失败允许目标已有前缀。
 non_goals:
-- 多进程调度和完整fork/wait/exit生命周期
-- 文件系统与块设备
-- 首进程故障后重启或重建用户执行
+  - 调度器与多进程生命周期
+  - fork、wait、exec与文件系统
+  - 通过兼容层保留旧接口或编译器访问顺序规避缺页问题
+  - HAL、设备框架、完整DTB解析、存储驱动及裸扇区烧录；不构建或刷写OpenSBI/U-Boot。
+mechanisms:
+  - 用户页表权限验证及逐页copyin、copyout、copyinstr
+  - brk控制连续堆，load/store缺页补齐合法栈范围内的连续页面
+  - mmap有序区间管理、节点池、兼容相邻合并及munmap裁剪拆分
+  - 用户页表独立复制与按所有权销毁
+  - a7编号及a0至a5参数的有界系统调用表
+  - 明确链接main到用户镜像基址，trampoline完成用户和内核上下文切换

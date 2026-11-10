@@ -1,6 +1,5 @@
 /* 标准输出和报错机制 */
 
-#include <stdarg.h>
 #include "mod.h"
 
 static char digits[] = "0123456789abcdef";
@@ -15,29 +14,24 @@ void print_init(void)
     spinlock_init(&print_lk, "printf");
 }
 
-/* %d %p */
-static void printint(int xx, int base, int sign)
+static void print_unsigned(uint64 value, unsigned int base)
 {
-    char buf[16];
-    int i;
-    uint32 x;
-
-    if (sign && (sign = xx < 0))
-        x = 0u - (uint32)xx;
-    else
-        x = xx;
-
-    i = 0;
+    char buf[32];
+    int i = 0;
     do
     {
-        buf[i++] = digits[x % base];
-    } while ((x /= base) != 0);
-
-    if (sign)
-        buf[i++] = '-';
+        buf[i++] = digits[value % base];
+    } while ((value /= base) != 0);
 
     while (--i >= 0)
         uart_putc_sync(buf[i]);
+}
+
+static void printint(int value)
+{
+    if (value < 0)
+        uart_putc_sync('-');
+    print_unsigned(value < 0 ? 0u - (uint32)value : (uint32)value, 10);
 }
 
 /* %x */
@@ -49,80 +43,96 @@ static void printptr(uint64 x)
         uart_putc_sync(digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
-/*
-    标准化输出, 需要支持:
-    1. %d (32位有符号数,以10进制输出)
-    2. %p (32位无符号数,以16进制输出)
-    3. %x (64位无符号数,以0x开头的16进制输出)
-    4. %c (单个字符)
-    5. %s (字符串)
-    提示: stdarg.h中的va_list中包括你需要的参数地址
-*/
+// Decode the binary64 argument using integer operations. Trap paths do
+// not enable the floating-point unit or save floating-point registers.
+static void printfloat(double value)
+{
+    union { double value; uint64 bits; } number = { .value = value };
+    uint64 significand = number.bits & ((1ull << 52) - 1);
+    int exponent = (number.bits >> 52) & 0x7ff;
+    if (number.bits >> 63)
+        uart_putc_sync('-');
+    if (exponent)
+        significand |= 1ull << 52;
+    int shift = 1075 - (exponent ? exponent : 1);
+    uint64 whole = 0;
+    __uint128_t fraction = 0;
+
+    if (shift <= 0)
+        whole = significand << -shift;
+    else if (shift < 128)
+    {
+        whole = (__uint128_t)significand >> shift;
+        fraction = significand - ((__uint128_t)whole << shift);
+    }
+
+    print_unsigned(whole, 10);
+    uart_putc_sync('.');
+    for (int i = 0; i < 6; i++)
+    {
+        unsigned int digit = 0;
+        if (fraction)
+        {
+            fraction *= 10;
+            digit = fraction >> shift;
+            fraction -= (__uint128_t)digit << shift;
+        }
+        uart_putc_sync('0' + digit);
+    }
+}
+
+static void vprint(const char *fmt, va_list ap)
+{
+    for (; *fmt; fmt++)
+    {
+        if (*fmt != '%')
+        {
+            uart_putc_sync(*fmt);
+            continue;
+        }
+        if (!*++fmt)
+            break;
+        switch (*fmt)
+        {
+        case 'd':
+            printint(va_arg(ap, int));
+            break;
+        case 'x':
+            printptr(va_arg(ap, uint64));
+            break;
+        case 'p':
+            print_unsigned(va_arg(ap, uint32), 16);
+            break;
+        case 'f':
+            printfloat(va_arg(ap, double));
+            break;
+        case 'c':
+            uart_putc_sync(va_arg(ap, int));
+            break;
+        case 's': {
+            const char *s = va_arg(ap, const char *);
+            for (s = s ? s : "(null)"; *s; s++)
+                uart_putc_sync(*s);
+            break;
+        }
+        default:
+            if (*fmt != '%')
+                uart_putc_sync('%');
+            uart_putc_sync(*fmt);
+            break;
+        }
+    }
+}
+
 void printf(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
     spinlock_acquire(&print_lk);
-    for(int i = 0;fmt[i] != '\0';i++) {
-        if(fmt[i] != '%') {
-            uart_putc_sync(fmt[i]);
-            continue;
-        }
-        i++;
-        if(fmt[i] == '\0') {
-            uart_putc_sync('%');
-            break;
-        }
-        switch (fmt[i]) {
-            case 'd': {
-                int value = va_arg(ap, int);
-                printint(value, 10, 1);
-                break;
-            } 
-
-            case 'p': {
-                void * value = va_arg(ap, void *);
-                printptr((uint64)value);
-                break;
-            } 
-
-            case 'x': {
-                uint64 value = va_arg(ap, uint64);
-                printptr(value);
-                break;
-            } 
-
-            case 'c': {
-                int value = va_arg(ap, int);
-                uart_putc_sync(value);
-                break;
-            } 
-
-            case 's': {
-                char * str = va_arg(ap, char *);
-                if (str == NULL) {
-                    str = "(null)";
-                }
-                while (*str != '\0') {
-                    uart_putc_sync(*str);
-                    str++;
-                }
-                break;
-            } 
-            case '%': 
-                uart_putc_sync('%');
-                break;
-            default:
-                uart_putc_sync('%');
-                uart_putc_sync(fmt[i]);
-                break;
-        }
-    }
+    vprint(fmt, ap);
     spinlock_release(&print_lk);
     va_end(ap);
 }
-
-
 
 /* 如果发生panic, UART的停止标志 */
 volatile int panicked = 0;
@@ -131,22 +141,21 @@ volatile int panicked = 0;
 void panic(const char *s)
 {
     intr_off();
-    // 不获取printf锁：panic可能发生在持锁或trap上下文中。
-    const char *prefix = "panic! ";
+    // Report invariants even when the current hart already holds print_lk.
+    const char *prefix = "panic: ";
     while (*prefix)
         uart_putc_sync(*prefix++);
-    if (s != NULL)
-        while (*s)
-            uart_putc_sync(*s++);
+    while (s && *s)
+        uart_putc_sync(*s++);
     uart_putc_sync('\n');
+    panicked = 1;
     while (1)
-        asm volatile("wfi");
+        ;
 }
 
 /* 如果不满足条件, 则调用panic */
 void assert(bool condition, const char *warning)
 {
-    if (!condition) {
+    if (!condition)
         panic(warning);
-    }
 }

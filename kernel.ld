@@ -9,8 +9,12 @@ PHDRS
 
 SECTIONS
 {
-  /* OpenSBI occupies the machine-mode firmware area from 0x80000000. */
+  /* 入口须与当前平台 KERNEL_BASE 一致, 开发板数字请查阅手册或DTB。 */
+#ifdef VISIONFIVE2
+  . = 0x40200000;
+#else
   . = 0x80200000;
+#endif
 
   .text : {
     KEEP(*(.text.entry))
@@ -39,13 +43,17 @@ SECTIONS
 
   .bss : {
     . = ALIGN(16);
+    BSS_BEGIN = .;
     *(.sbss .sbss.*) /* do not need to distinguish this from .bss */
     . = ALIGN(16);
     *(.bss .bss.*)
+    . = ALIGN(8);
+    BSS_END = .;
   } :data
 
   . = ALIGN(4096);
-  PROVIDE(ALLOC_BEGIN = .);
-  /* QEMU RAM is 130 MiB from 0x80000000; leave the first 2 MiB for OpenSBI. */
-  PROVIDE(ALLOC_END = 0x80200000 + 128M);
+  ALLOC_BEGIN = .;
+  KERNEL_IMAGE_SIZE = ALLOC_BEGIN - ADDR(.text);
+  ALLOC_END = ADDR(.text) + 128M;
+  ASSERT(ALLOC_BEGIN < ALLOC_END, "error: kernel exceeds managed memory")
 }

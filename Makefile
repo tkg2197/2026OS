@@ -1,7 +1,13 @@
+.DEFAULT_GOAL := build
+PLATFORM ?= qemu
+ifneq ($(PLATFORM),qemu)
+ifneq ($(PLATFORM),vf2)
+$(error unsupported PLATFORM: $(PLATFORM))
+endif
+endif
+
 # 引入通用配置文件
 include common.mk
-
-.DEFAULT_GOAL := build
 
 # 自动探测本机可用的RISC-V工具链前缀
 # common.mk中默认是riscv64-linux-gnu-, 但有些环境(例如macOS上的brew)装的是riscv64-unknown-elf-
@@ -15,25 +21,31 @@ ifneq ($(DETECTED_TOOLPREFIX),)
 TOOLPREFIX = $(DETECTED_TOOLPREFIX)
 endif
 
-# 配置CPU核心数量
-CPUNUM = 2
-# 定义目标文件输出目录
-TARGET = target
+# 配置CPU核心数量, QEMU固定为2
+CPUNUM ?= 2
+ifneq ($(CPUNUM),2)
+$(error Lab5 requires CPUNUM=2)
+endif
+TARGET = target/$(PLATFORM)
+CFLAGS += -I$(TARGET)/user
+ifeq ($(PLATFORM),vf2)
+CFLAGS += -DVISIONFIVE2
+endif
 # 定义各模块路径
 KernelPath = src/kernel
 UserPath = src/user
 # 内核链接脚本
-KERNEL_LD  = kernel.ld
+KERNEL_LD  = $(TARGET)/kernel/kernel.ld
 # 用户程序链接脚本 (用户程序从USER_BASE = 0x1000开始执行)
 USER_LD    = user.ld
 # 定义内核目标文件路径
-ELFKernel = $(TARGET)/kernel/kernel-qemu.elf
-NakedKernel = $(TARGET)/kernel/kernel-qemu.bin
+ELFKernel = $(TARGET)/kernel/kernel-$(PLATFORM).elf
+NakedKernel = $(TARGET)/kernel/kernel-$(PLATFORM).bin
 # 定义用户程序的目标文件路径
 ELFUser = $(TARGET)/user/initcode.elf
 NakedUser = $(TARGET)/user/initcode.bin
 # initcode数组的头文件 (由proc.c直接#include)
-InitcodeHeader = $(UserPath)/initcode.h
+InitcodeHeader = $(TARGET)/user/initcode.h
 
 # 收集内核源代码文件（.c和.S汇编文件）
 KernelSourceFile = $(wildcard $(KernelPath)/*.c) $(wildcard $(KernelPath)/*.S)
@@ -64,19 +76,29 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 -include $(KernelOBJ:.o=.d) $(UserOBJ:.o=.d)
 
 # 生成GDB初始化文件
-.gdbinit: .gdbinit.tmpl-riscv
-	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
+.gdbinit: Makefile
+	@printf 'set architecture riscv:rv64\ntarget remote :%s\n' '$(GDBPORT)' > $@
 
 # 运行目标：先构建再启动QEMU
+.PHONY: build run debug clean
+ifeq ($(PLATFORM),qemu)
 run: build
 	$(QEMU) $(QEMUOPTS)
 
 # 调试目标：启动带GDB调试的QEMU
 debug: $(ELFKernel) .gdbinit
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
+else
+run debug:
+	@echo "PLATFORM=vf2: use U-Boot booti"
+	@exit 1
+endif
 
 # 构建目标：创建输出目录并编译内核
-build: $(TARGET) $(ELFKernel) 
+build: $(TARGET) $(ELFKernel)
+ifeq ($(PLATFORM),vf2)
+build: $(NakedKernel)
+endif
 
 # 创建输出目录结构（如果不存在）
 .PHONY: $(TARGET)
@@ -89,22 +111,20 @@ $(TARGET):
 	@mkdir -p $(TARGET)/kernel/mem
 	@mkdir -p $(TARGET)/kernel/trap
 	@mkdir -p $(TARGET)/kernel/proc
+	@mkdir -p $(TARGET)/kernel/syscall
 	@mkdir -p $(TARGET)/user
 
 # 编译规则：将汇编文件(.S)编译为目标文件(.o)
-$(TARGET)/kernel/%.o: $(KernelPath)/%.S
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(TARGET)/kernel/%.o: $(KernelPath)/%.S | $(TARGET)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 # 编译规则：将C文件(.c)编译为目标文件(.o)
-$(TARGET)/kernel/%.o: $(KernelPath)/%.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(TARGET)/kernel/%.o: $(KernelPath)/%.c | $(TARGET)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 # 编译用户态程序
-$(TARGET)/user/%.o: $(UserPath)/%.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(TARGET)/user/%.o: $(UserPath)/%.c | $(TARGET)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 # 链接生成用户程序ELF (main位于USER_BASE, 由user.ld保证)
 $(ELFUser): $(UserOBJ) $(USER_LD)
@@ -121,16 +141,17 @@ $(InitcodeHeader): $(NakedUser)
 # proc.c会#include initcode.h, 因此它必须等待initcode生成完毕
 $(TARGET)/kernel/proc/proc.o: $(InitcodeHeader)
 
+# 不使用CFLAGS中的-MD，避免生成的依赖覆盖源链接脚本。
+$(KERNEL_LD): kernel.ld | $(TARGET)
+	$(CC) -E -P -x c $(if $(filter vf2,$(PLATFORM)),-DVISIONFIVE2) $< -o $@
+
+$(NakedKernel): $(ELFKernel)
+	$(OBJCOPY) -O binary $< $@
+
 # 链接生成内核ELF文件
 $(ELFKernel): $(KernelOBJ) $(KERNEL_LD)
 	$(LD) $(LDFLAGS) -T $(KERNEL_LD) $(KernelOBJ) -o $@
 
-# 清理目标：删除输出目录和生成的头文件
-.PHONY: clean
+# 清理目标：删除输出目录
 clean:
 	rm -rf target
-	rm -f $(InitcodeHeader)
-
-.PHONY: all build run qemu debug
-all: build
-qemu: run

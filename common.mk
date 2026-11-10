@@ -11,6 +11,7 @@ CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
 CFLAGS += -std=gnu17
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
+CFLAGS += -march=rv64gc -mabi=lp64d
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
@@ -25,5 +26,3 @@ endif
 
 # 链接相关配置 
 LDFLAGS = -z max-page-size=4096
-
-CFLAGS += -march=rv64imac_zicsr_zifencei -mabi=lp64

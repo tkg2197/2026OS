@@ -10,7 +10,10 @@ void uart_init(void)
 {
   	// 关闭中断
 	WriteReg(IER, 0x00);
+	// 清零和使能FIFO模式
+	WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);
 
+#ifndef VISIONFIVE2
 	// 进入设置比特率的模式
 	WriteReg(LCR, LCR_BAUD_LATCH);
 
@@ -20,18 +23,14 @@ void uart_init(void)
 
 	// 设置传输字节长度为8bit,不校验
 	WriteReg(LCR, LCR_EIGHT_BITS);
-
-	// 清零和使能FIFO模式
-	WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);
-
-	// 接收中断等PLIC和stvec准备好后单独启用；轮询发送不需要TX中断。
-	WriteReg(IER, 0);
+#endif
+	WriteReg(IER, 0x00);
 }
 
-// 全局调用一次，调用前PLIC和监督者trap入口必须已就绪。
+// 打开UART接收中断
 void uart_enable_rx_interrupt(void)
 {
-    WriteReg(IER, IER_RX_ENABLE);
+	WriteReg(IER, IER_RX_ENABLE);
 }
 
 // 单个字符输出
@@ -71,8 +70,8 @@ void uart_intr(void)
 	while (1)
 	{
 		int c = uart_getc_sync();
-		if (c == -1)
-		break;
+        if (c == -1)
+            break;
         if (c == '\b' || c == 0x7f)
             printf("\b \b");
         else if (c == '\r' || c == '\n')

@@ -5,30 +5,46 @@ owns:
 - kernel.ld
 - user.ld
 state:
-  target: target目录保存内核与用户目标文件及依赖；CPUNUM在Makefile中配置，INTERVAL在trap/type.h中配置。
+  platform: PLATFORM默认为qemu，仅接受字面值qemu或vf2；vf2追加-DVISIONFIVE2，qemu不定义该宏。
+  target: TARGET=target/$(PLATFORM)，内核、用户目标文件和依赖均按平台隔离；INTERVAL在trap/type.h中配置。
+  initcode: 生成头为$(TARGET)/user/initcode.h，通过-I$(TARGET)/user及#include "initcode.h"使用，保留target_user_initcode及长度符号。
 rules:
-- 使用freestanding RV64IMAC+Zicsr+Zifencei/LP64整数代码，不链接宿主标准库；当前trap仅保存整数上下文，不声明FPU状态支持；CPUNUM与NCPU均为2。
-- OpenSBI占用0x80000000起的前2MiB，内核入口_entry链接到0x80200000；trampoline单独页对齐且不超过4096字节。
-- QEMU提供130MiB物理内存，内核只管理[0x80200000, 0x88200000)的128MiB，不覆盖OpenSBI。
+- 使用freestanding RV64GC/lp64d C与汇编，明确-march=rv64gc -mabi=lp64d，不链接宿主标准库；保留原有警告、-Werror、优化和medany设置，不填学生留空或抑制诊断以完成构建。
+- CPUNUM仅描述QEMU运行核数，默认为2且只允许2，其他值由make明确报错；vf2的NCPU由学生填写，表示物理hart槽位数，不传给模拟器。
+- '不支持的PLATFORM值通过$(error unsupported PLATFORM: $(PLATFORM))拒绝；显式默认目标为build，不受包含的依赖文件影响。'
+- 复用源kernel.ld，以$(CC) -E -P -x c和当前平台宏生成$(TARGET)/kernel/kernel.ld，再交给链接器；规则显式依赖源脚本，预处理不使用-MD，不让.d或预处理依赖覆盖源kernel.ld。
+- qemu入口为0x80200000，OpenSBI占用0x80000000起的前2MiB；vf2入口以生成的kernel.ld为准，须与学生填写的KERNEL_BASE一致。两平台保留原PHDRS和text/trampoline/data布局，trampoline单独页对齐且不超过4096字节。
+- BSS_BEGIN/BSS_END按8字节对齐，ALLOC_BEGIN位于BSS后按页对齐，KERNEL_IMAGE_SIZE=ALLOC_BEGIN-ADDR(.text)；ALLOC_END为内核起点加128MiB，并以ASSERT保证ALLOC_BEGIN < ALLOC_END。
+- QEMU提供130MiB物理内存，内核只管理[0x80200000, 0x88200000)；vf2的管理窗口由学生填写，固件、保留区及DTB不得与之重叠。
+- 内核ELF为$(TARGET)/kernel/kernel-$(PLATFORM).elf，vf2另由既有OBJCOPY生成同目录kernel-vf2.bin；用户ELF、bin及initcode.h也位于本平台TARGET下，切换平台不复用另一平台的对象或生成头。
 - 用户 main 使用显式入口段及链接脚本从 USER_BASE=0x1000 开始；无编译优化或重排参数依赖。
 targets:
-  run:
-    pre:
-    - qemu-system-riscv64 可用。
-    effects:
-    - 先构建镜像，再启动 QEMU。
-    post:
-    - 用 QEMU virt、130MiB内存、-bios default和所选CPUNUM启动该镜像，OpenSBI在S-mode跳转到内核，串口连接标准输入输出。
-  clean:
-    effects:
-    - 移除 target 与根目录生成镜像。
-    post:
-    - 删除本仓库构建产物，保留源码、规格和无关文件。
   build:
     pre:
-    - POSIX make/sh、RISC-V GCC/binutils、xxd 可用。
+    - POSIX make/sh、RISC-V GCC/binutils、xxd可用。
     effects:
-    - 构建用户ELF、二进制与内嵌数据，编译内核并链接。
+    - 构建当前平台用户ELF、二进制与内嵌数据，预处理链接脚本，编译内核并链接ELF；vf2同时生成供U-Boot booti加载的原始bin。
     post:
-    - 生成可由 QEMU 加载的 kernel-qemu.elf；编译或链接失败停止并返回非零。
-    - 内嵌 initcode 及长度来自本次用户二进制；C/汇编/头文件变化触发相关目标增量重建。
+    - qemu生成target/qemu/kernel/kernel-qemu.elf；vf2生成target/vf2/kernel/kernel-vf2.elf和target/vf2/kernel/kernel-vf2.bin，任一步骤失败停止并返回非零。
+    - 内嵌initcode及长度来自本平台本次用户二进制；C/汇编/头文件和源链接脚本变化触发相关目标增量重建，qemu→vf2→qemu切换无需clean。
+    - 原有实验留空仍可能阻止整树构建；模板机制验收与学生完成后的端到端验收分别记录。
+  run:
+    pre:
+    - PLATFORM=qemu且qemu-system-riscv64可用。
+    effects:
+    - qemu先构建镜像，再启动QEMU；PLATFORM=vf2时以非零状态拒绝，不启动模拟器或连接设备。
+    post:
+    - qemu使用virt、130MiB内存、-bios default、两核及target/qemu/kernel/kernel-qemu.elf，OpenSBI以S-mode交接，串口连接标准输入输出。
+    - 'vf2输出“PLATFORM=vf2: use U-Boot booti”。'
+  debug:
+    pre:
+    - PLATFORM=qemu且qemu-system-riscv64可用。
+    effects:
+    - qemu构建同一平台ELF并以调试模式启动QEMU；PLATFORM=vf2时以非零状态拒绝，不启动模拟器或连接设备。
+    post:
+    - 'vf2输出“PLATFORM=vf2: use U-Boot booti”。'
+  clean:
+    effects:
+    - 移除target中的全部平台构建产物；不再生成或清理src/user/initcode.h。
+    post:
+    - 删除本仓库构建产物，保留源码、规格和无关文件。

@@ -28,10 +28,30 @@ sbi_ret_t sbi_hart_start(uint64 hartid, uint64 start_addr, uint64 opaque)
                    hartid, start_addr, opaque, 0, 0, 0);
 }
 
+sbi_ret_t sbi_hart_stop(void)
+{
+  return sbi_ecall(SBI_EXT_HSM, SBI_HSM_HART_STOP,
+                   0, 0, 0, 0, 0, 0);
+}
+
 // 设置当前hart的下一次时钟事件
 // 注意stime_value是mtime的目标值(绝对时间), 而不是时间间隔
 sbi_ret_t sbi_set_timer(uint64 stime_value)
 {
   return sbi_ecall(SBI_EXT_TIME, SBI_TIME_SET_TIMER,
                    stime_value, 0, 0, 0, 0, 0);
+}
+
+// 请求其他hart执行sfence.vma; start_addr和size均为0表示整个地址空间
+sbi_ret_t sbi_remote_sfence_vma(uint64 hart_mask, uint64 hart_mask_base, uint64 start_addr, uint64 size)
+{
+  return sbi_ecall(SBI_EXT_RFENCE, SBI_RFENCE_SFENCE_VMA,
+                   hart_mask, hart_mask_base, start_addr, size, 0, 0);
+}
+
+// 重启或关闭整个系统
+sbi_ret_t sbi_system_reset(uint64 reset_type, uint64 reset_reason)
+{
+  return sbi_ecall(SBI_EXT_SRST, SBI_SRST_RESET,
+                   reset_type, reset_reason, 0, 0, 0, 0);
 }

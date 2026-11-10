@@ -25,11 +25,11 @@ typedef struct context
 // 跨优先级的上下文
 typedef struct trapframe
 {
-    /*   0 */ uint64 user_to_kern_satp;        // kernel page table
-    /*   8 */ uint64 user_to_kern_sp;          // top of process's kernel stack
-    /*  16 */ uint64 user_to_kern_trapvector;  // usertrap()
-    /*  24 */ uint64 user_to_kern_epc;         // saved user program counter
-    /*  32 */ uint64 user_to_kern_hartid;      // saved kernel tp
+    /*   0 */ uint64 user_to_kern_satp;       // kernel page table
+    /*   8 */ uint64 user_to_kern_sp;         // top of process's kernel stack
+    /*  16 */ uint64 user_to_kern_trapvector; // usertrap()
+    /*  24 */ uint64 user_to_kern_epc;        // saved user program counter
+    /*  32 */ uint64 user_to_kern_hartid;     // saved kernel tp
 
     // 全部通用寄存器
     /*  40 */ uint64 ra;
@@ -67,6 +67,7 @@ typedef struct trapframe
 
 // 外部结构体
 typedef uint64 *pgtbl_t;
+typedef struct mmap_region mmap_region_t;
 
 // 进程
 typedef struct proc
@@ -76,15 +77,9 @@ typedef struct proc
     pgtbl_t pgtbl;       // 用户态页表
     uint64 heap_top;     // 用户堆顶(以字节为单位)
     uint64 ustack_npage; // 用户栈占用的页面数量
+    mmap_region_t *mmap; // 用户态mmap区域
     trapframe_t *tf;     // 用户态内核态切换时的运行环境暂存空间
 
-    uint64 kstack;       // 内核栈的虚拟地址
-    context_t ctx;       // 内核态进程上下文
+    uint64 kstack; // 内核栈的虚拟地址
+    context_t ctx; // 内核态进程上下文
 } proc_t;
-
-// 汇编固定偏移必须和C结构保持一致。
-_Static_assert(sizeof(context_t) == 112, "context size");
-_Static_assert(__builtin_offsetof(context_t, s11) == 104, "context s11 offset");
-_Static_assert(sizeof(trapframe_t) == 288, "trapframe size");
-_Static_assert(__builtin_offsetof(trapframe_t, a0) == 112, "trapframe a0 offset");
-_Static_assert(__builtin_offsetof(trapframe_t, t6) == 280, "trapframe t6 offset");

@@ -33,16 +33,17 @@ typedef struct alloc_region
 
 /*
     物理内存的布局情况:
-    KERNEL_BASE ~ KERNEL_DATA  内核程序kernel-qemu.elf的代码区域 (不可分配回收)
-    KERNEL_DATA ~ ALLOC_BEGIN  内核程序kernel-qemu.elf的数据区域 (不可分配回收)
+    KERNEL_BASE ~ KERNEL_DATA  内核程序的代码区域 (不可分配回收)
+    KERNEL_DATA ~ ALLOC_BEGIN  内核程序的数据区域 (不可分配回收)
     ALLOC_BEGIN ~ ALLOC_END    可分配回收的区域 (前KERN_PAGES属于内核空间, 后面属于用户空间)
 */
 
 // 内核基地址
-#define PHYS_MEM_BASE 0x80000000ul
-#define PHYS_MEM_SIZE (130ul * 1024 * 1024)
-#define PHYS_MEM_END (PHYS_MEM_BASE + PHYS_MEM_SIZE)
+#ifdef VISIONFIVE2
+#define KERNEL_BASE 0x40200000ul
+#else
 #define KERNEL_BASE 0x80200000ul
+#endif
 
 // from kernel.ld
 extern char KERNEL_DATA[];
@@ -116,6 +117,12 @@ typedef pte_t *pgtbl_t;
 #define PTE_A (1 << 6) // accessed
 #define PTE_D (1 << 7) // dirty
 
+#ifdef VISIONFIVE2
+#define PTE_MACHINE (PTE_A | PTE_D)
+#else
+#define PTE_MACHINE 0
+#endif
+
 // 检查一个PTE是否属于pgtbl
 #define PTE_CHECK(pte) (((pte) & (PTE_R | PTE_W | PTE_X)) == 0)
 
@@ -124,13 +131,43 @@ typedef pte_t *pgtbl_t;
 
 // 定义一个非常大的VA, 正常来说所有VA不得大于它
 #define VA_MAX (1ul << 38)
-#define USER_BASE ((uint64)PGSIZE)
+
+// S-mode <-> U-mode 切换过程用到的公共代码区域 (内核页表 + 用户页表)
 #define TRAMPOLINE (VA_MAX - PGSIZE)
+
+// S-mode <-> U-mode 切换过程用到的临时数据区域 (用户页表)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
-#define USTACK (TRAPFRAME - PGSIZE)
-#define KSTACK(i) (TRAMPOLINE - ((uint64)(i) + 1) * 2 * PGSIZE)
-// PGSIZE 继续保持 4096。
-#define VM_LEVEL_SIZE(level) (1ul << VA_SHIFT(level))
-#define HUGE_2M VM_LEVEL_SIZE(1)
-#define HUGE_1G VM_LEVEL_SIZE(2)
-#define PTE_LEAF(pte) (((pte) & (PTE_R | PTE_W | PTE_X)) != 0)
+
+// 各个进程的内核空间函数栈 (内核页表)
+#define KSTACK(procid) (TRAMPOLINE - ((procid) + 1) * 2 * PGSIZE)
+
+// 用户空间基地址 (用户页表)
+#define USER_BASE (PGSIZE)
+#define USER_HEAP_BASE (USER_BASE + PGSIZE)
+#define USER_STACK_TOP TRAPFRAME
+#define PTE_PERM (PTE_R | PTE_W | PTE_X | PTE_U)
+
+/* mmap_region 描述了一个 mmap区域 */
+typedef struct mmap_region
+{
+    uint64 begin;             // 起始地址
+    uint32 npages;            // 管理的页面数量
+    int perm;                 // 叶项权限
+    struct mmap_region *next; // 链表指针
+} mmap_region_t;
+
+/* mmap_region_node 是 mmap_region 在仓库里的包装 */
+typedef struct mmap_region_node
+{
+    mmap_region_t mmap;
+    struct mmap_region_node *next;
+} mmap_region_node_t;
+
+/* 最大支持256个mmap_region_node */
+#define N_MMAP 256
+
+// 映射区域的终点 (给ustack留16MB内存空间)
+#define MMAP_END (TRAPFRAME - 16 * 256 * PGSIZE)
+
+// 映射区域的起点 (单个进程的mmap_reagion最大占据64MB内存空间)
+#define MMAP_BEGIN (MMAP_END - 64 * 256 * PGSIZE)

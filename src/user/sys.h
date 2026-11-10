@@ -27,4 +27,14 @@ typedef long syscall_arg_t;
 #define __syscall(...) __SYSCALL_DISP(__syscall, __VA_ARGS__)
 #define syscall(...) __syscall(__VA_ARGS__)
 
+static inline unsigned long mmap(void *start, unsigned long len)
+{
+    return syscall(SYS_mmap, start, len);
+}
+
+static inline int munmap(void *start, unsigned long len)
+{
+    return syscall(SYS_munmap, start, len);
+}
+
 #endif // __SYSCALL_H

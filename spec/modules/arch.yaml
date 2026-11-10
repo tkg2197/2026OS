@@ -18,13 +18,17 @@ state:
   stval: 最近一次监督者异常附加值。
   time: OpenSBI允许S-mode读取的平台递增时间计数器。
   tp: 内核期间的当前hart ID；初值来自OpenSBI传入_entry的a0，用户期间由用户上下文管理。
+  boot_hartid: 首次入口清空BSS后记录的物理hart ID；可为平台内任意有效hart，作为共享初始化和全局ticks的归属依据。
 rules:
-- NCPU固定为2，QEMU的CPUNUM必须与之相等；OpenSBI传入的hart ID必须落在0..NCPU-1。
+- PLATFORM=qemu时NCPU=2、FIRST_HART=0，有效物理hart为0..1，QEMU的CPUNUM固定为2。
+- PLATFORM=vf2定义VISIONFIVE2；学生查阅手册或DTB填写NCPU、FIRST_HART。有效hart满足FIRST_HART<=hartid<NCPU，NCPU是数组槽位数，FIRST_HART以下的槽位不运行。
+- 两平台有效hart均满足FIRST_HART <= hartid < NCPU；tp和CPU_stack、cpus[]索引继续使用物理hart ID，不转换成逻辑CPU编号。
+- arch/type.h的纯预处理常量供C和汇编共用，typedef和C声明由__ASSEMBLER__保护；boot_hartid以extern uint64声明。
 - 内核不得读写mstatus、mepc、mhartid、medeleg、mideleg、mie、mtvec、mscratch、mcounteren、pmpcfg或pmpaddr，也不得直接访问CLINT。
 - S-mode CSR接口只修改所命名的寄存器；只读位与WARL字段遵循硬件约束，调用者提供合法编码。
 - w_satp不替调用者执行sfence.vma；修改地址空间和TLB失效必须由上层协议配对。
 - SBI ecall使用a7传EID、a6传FID、a0..a5传参数，并从a0/a1取得error/value；调用者必须处理扩展可能返回的错误。
-- 内核tp保存范围内hart ID，用户进入内核由trampoline恢复，退出时恢复用户tp。
+- 内核tp保存有效物理hart ID，用户进入内核由trampoline恢复，退出时恢复用户tp。
 functions:
   "sbi_ret_t sbi_ecall(uint64 eid, uint64 fid, uint64 arg0, uint64 arg1, uint64 arg2, uint64 arg3, uint64 arg4, uint64 arg5);":
     effects:
@@ -41,6 +45,21 @@ functions:
     - 调用SBI TIME扩展的SET_TIMER功能，为当前hart设置绝对时间stime_value。
     post:
     - 返回OpenSBI结果；成功后当前hart在time达到目标值时产生S-mode时钟中断。
+  "sbi_ret_t sbi_hart_stop(void);":
+    effects:
+    - 调用SBI HSM扩展的HART_STOP功能，停止当前hart。
+    post:
+    - 成功则当前hart不再返回；失败返回OpenSBI错误码。模板不调用本接口。
+  "sbi_ret_t sbi_remote_sfence_vma(uint64 hart_mask, uint64 hart_mask_base, uint64 start_addr, uint64 size);":
+    effects:
+    - 调用SBI RFENCE扩展的REMOTE_SFENCE_VMA，请求目标hart执行sfence.vma。
+    post:
+    - 返回OpenSBI结果；start_addr与size均为0表示整个地址空间。本核sfence_vma不受影响，页表模块不自动调用本接口。
+  "sbi_ret_t sbi_system_reset(uint64 reset_type, uint64 reset_reason);":
+    effects:
+    - 调用SBI SRST扩展的SYSTEM_RESET。
+    post:
+    - 成功则系统复位或关机且不返回；失败返回OpenSBI错误码。模板不调用本接口。
   "uint64 r_sstatus(void);":
     effects: []
     post:

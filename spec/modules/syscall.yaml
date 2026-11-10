@@ -1,0 +1,78 @@
+module: kernel/syscall
+owns:
+  - src/kernel/syscall/syscall.c
+  - src/kernel/syscall/sysfunc.c
+  - src/kernel/syscall/method.h
+  - src/kernel/syscall/mod.h
+  - src/kernel/syscall/type.h
+state:
+  syscall_table: 固定有界分发表；编号与src/user/syscall_num.h一致，0至7依次为helloworld、copyin、copyout、copyinstr、brk、mmap、munmap、printf。
+rules:
+  - 分发和参数提取要求当前进程及trapframe有效；丢失上下文、无效内核输出指针和参数索引属于内核错误。
+  - a7为调用号，a0至a5为六个原始参数，a0接收64位返回结果；只有usertrap推进epc，syscall不重复推进。
+  - 用户指针只能通过uvm复制访问；用户请求无效和资源不足返回失败，不能panic。
+  - 所有长度先检查完整64位参数，再缩窄到uint32；禁止把超过接口上限的用户值截断为合法长度。
+  - brk失败码为(uint64)-1，mmap失败码为0，其他服务失败码为(uint64)-1；mmap/munmap/heap遵守uvm事务规则，copy允许部分复制。
+functions:
+  'void syscall(void);':
+    effects:
+      - 从当前trapframe.a7查表执行对应服务，将结果写回a0。
+    post:
+      - 未注册或超出表范围的编号在a0返回(uint64)-1且不执行服务；用户epc不变。
+  'uint64 arg_raw(int n);':
+    pre:
+      - n在0至5。
+    effects: []
+    post:
+      - 返回当前trapframe的对应a寄存器原始64位值。
+  'void arg_uint32(int n, uint32 *ip);':
+    pre:
+      - n在0至5且ip可写；调用者已排除不允许的高32位。
+    effects:
+      - 向ip写入参数低32位。
+    post:
+      - 不访问用户指针或改变trapframe。
+  'void arg_uint64(int n, uint64 *ip);':
+    pre:
+      - n在0至5且ip可写。
+    effects:
+      - 向ip写入完整参数。
+    post:
+      - 不访问用户指针或改变trapframe。
+  'int arg_str(int n, char *buf, int maxlen);':
+    pre:
+      - n在0至5；buf指向maxlen字节内核缓冲区。
+    effects:
+      - 通过uvm_copyin_str读取参数指向的字符串。
+    post:
+      - maxlen内包含NUL时返回0，否则返回-1；失败缓冲区可含前缀，不得当作完整字符串使用。
+  'uint64 sys_copyin(void);':
+    effects:
+      -
+    post:
+      - 
+  'uint64 sys_copyout(void);':
+    effects:
+      - 
+    post:
+      - 
+  'uint64 sys_copyinstr(void);':
+    effects:
+      - 
+    post:
+      - 
+  'uint64 sys_brk(void);':
+    effects:
+      - 
+    post:
+      - 
+  'uint64 sys_mmap(void);':
+    effects:
+      - 
+    post:
+      - 
+  'uint64 sys_munmap(void);':
+    effects:
+      - 
+    post:
+      - 

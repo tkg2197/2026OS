@@ -1,0 +1,109 @@
+module: kernel/uvm
+owns:
+  - src/kernel/mem/uvm.c
+  - src/kernel/mem/mmap.c
+state:
+  用户页表: 独占用户数据页及页表页；trampoline物理页和trapframe物理页由其他所有者持有。
+  用户地址布局: 低地址第一页无映射；代码位于USER_BASE；堆为[USER_HEAP_BASE, heap_top)，mmap为[MMAP_BEGIN, MMAP_END)，栈为[USER_STACK_TOP - ustack_npage * PAGE_SIZE, USER_STACK_TOP)。
+  mmap节点池: MMAP_REGION_COUNT个可复用节点；节点唯一属于空闲池、某进程链或尚未发布的操作。
+rules:
+  - 地址和长度运算先检查上界及溢出，再进行加法、乘法或页对齐；用户请求非法和资源耗尽返回失败，所有权、页表结构等内核不变量损坏才panic。
+  - 用户页必须为有效叶项并带PTE_U；读取需要PTE_R，写入需要PTE_W；禁止通过copy访问trampoline或trapframe。
+  - heap、stack、mmap及页表复制只有完整成功后才发布新状态；失败保留操作前已发布映射和元数据并释放本次临时资源，临时资源如何组织由实现决定。
+  - 用户复制逐页验证后复制该页片段；后续页面失败可留下已复制前缀，不承诺回滚目标内容。
+  - 每个mmap链只含非空页对齐区间，按begin递增且互不重叠；权限相同的相邻区间合并；链描述的映射必须与页表一致。
+  - mmap及堆栈事务由调用者在当前进程独占地址空间修改上下文中执行；节点池分配回收受自身锁保护。
+  - 用户页表销毁不释放trampoline和trapframe物理页；进程另行回收trapframe、内核栈及mmap节点，任何资源只回收一次。
+functions:
+  'int uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'int uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'int uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'uint64 uvm_heap_ungrow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'int64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'void uvm_destroy_pgtbl(pgtbl_t pgtbl);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'int uvm_copy_pgtbl(pgtbl_t old, pgtbl_t new, uint64 heap_top, uint64 ustack_npage, mmap_region_t *mmap);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'void mmap_init(void);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'mmap_region_t *mmap_region_alloc(void);':
+    effects:
+      - 
+    post:
+      - 
+  'void mmap_region_free(mmap_region_t *mmap);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'uint64 uvm_mmap_find(mmap_region_t *head_mmap, uint64 len, mmap_region_t **p_last_mmap, mmap_region_t **p_tmp_mmap);':
+    pre:
+      - 
+    effects:
+      - 
+    post:
+      - 
+  'uint64 uvm_mmap(uint64 begin, uint32 npages, int perm);':
+    effects:
+      - 
+    post:
+      - 
+  'int uvm_munmap(uint64 begin, uint32 npages);':
+    effects:
+      - 
+    post:
+      - 

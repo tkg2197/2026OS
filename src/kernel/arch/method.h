@@ -6,7 +6,10 @@ sbi_ret_t sbi_ecall(uint64 eid, uint64 fid,
                     uint64 arg0, uint64 arg1, uint64 arg2,
                     uint64 arg3, uint64 arg4, uint64 arg5);
 sbi_ret_t sbi_hart_start(uint64 hartid, uint64 start_addr, uint64 opaque);
+sbi_ret_t sbi_hart_stop(void);
 sbi_ret_t sbi_set_timer(uint64 stime_value);
+sbi_ret_t sbi_remote_sfence_vma(uint64 hart_mask, uint64 hart_mask_base, uint64 start_addr, uint64 size);
+sbi_ret_t sbi_system_reset(uint64 reset_type, uint64 reset_reason);
 
 /* RISC-V相关的寄存器读写 */
 
@@ -177,5 +180,5 @@ static inline uint64 r_ra()
 // 刷新TLB (页表切换使用)
 static inline void sfence_vma()
 {
-    asm volatile("sfence.vma zero, zero");
+    asm volatile("sfence.vma zero, zero" ::: "memory");
 }

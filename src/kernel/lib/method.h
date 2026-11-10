@@ -4,7 +4,7 @@
 
 void print_init(void);
 void printf(const char *fmt, ...);
-void panic(const char *s);
+void panic(const char *s) __attribute__((noreturn));
 void assert(bool condition, const char *warning);
 
 /* uart.c: UART驱动函数 */
