@@ -144,10 +144,10 @@ void panic(const char *s)
     // Report invariants even when the current hart already holds print_lk.
     const char *prefix = "panic: ";
     while (*prefix)
-        uart_putc_sync(*prefix++);
+        uart_putc_raw(*prefix++);
     while (s && *s)
-        uart_putc_sync(*s++);
-    uart_putc_sync('\n');
+        uart_putc_raw(*s++);
+    uart_putc_raw('\n');
     panicked = 1;
     while (1)
         ;

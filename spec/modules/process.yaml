@@ -33,20 +33,18 @@ functions:
 
   pgtbl_t proc_pgtbl_init(uint64 trapframe):
     pre:
-    - 
+      - trapframe 为调用者拥有的页对齐物理页。
     effects:
-    - 
+      - 分配空根，将 TRAMPOLINE 映为 RX、TRAPFRAME 映为 RW，两者均不含 U。
     post:
-    - 
-
+      - 成功返回页表；失败返回NULL且回收临时页表，trapframe所有权不变。
   void proc_make_first(void):
     pre:
-    - 
+      - 启动核已启用内核页表，完成本地 trap 初始化。
     effects:
-    - 
+      - 构造 PID 1 的代码页、栈页、特殊映射与上下文，最后发布 cpu.proc，执行 swtch。
     post:
-    - 
-
+      - 以 USER_BASE 和 USER_STACK_TOP 进入用户态，不返回；构造失败先清理再报告启动错误。
   void swtch(context_t *old, context_t *new):
     pre:
     - old/new 是互不重叠的可读写有效 context_t；目标 sp/ra 有效。

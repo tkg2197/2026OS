@@ -33,33 +33,29 @@ void uart_enable_rx_interrupt(void)
 	WriteReg(IER, IER_RX_ENABLE);
 }
 
-// 单个字符输出
+// Panic output can run even when the current hart has no valid CPU slot.
+void uart_putc_raw(int c)
+{
+    while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
+        ;
+    WriteReg(THR, (uint8)c);
+}
+
 void uart_putc_sync(int c)
 {
-	// 关闭中断
-	push_off();
-
-	// 如果错误发生则卡住
-	while (panicked)
-		;
-
-	// 等待TX队列进入idle状态
-	while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
-		;
-
-	// 输出
-	WriteReg(THR, c);
-
-	// 开启中断
-	pop_off();
+    push_off();
+    while (panicked)
+        ;
+    uart_putc_raw(c);
+    pop_off();
 }
 
 // 单个字符输入
 // 失败返回-1
 int uart_getc_sync(void)
 {
-	if (ReadReg(LSR) & 0x01)
-		return ReadReg(RHR);
+	if (ReadReg(LSR) & LSR_RX_READY)
+		return (uint8)ReadReg(RHR);
 	else
 		return -1;
 }

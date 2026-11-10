@@ -6,7 +6,7 @@
 //_entry_secondary是HSM启动其他hart的入口
 extern void _entry_secondary(void);
 
-static volatile int initialized = 0;
+static int initialized = 0;
 
 void main(void)
 {
@@ -24,8 +24,7 @@ void main(void)
         // 必须放在其他hart启动之前, 否则它们可能在初始化完成前就走进中断
         trap_kernel_init();
 
-        __sync_synchronize();
-        initialized = 1;
+        __atomic_store_n(&initialized, 1, __ATOMIC_RELEASE);
 
         for (uint64 id = FIRST_HART; id < NCPU; id++)
         {
@@ -42,9 +41,8 @@ void main(void)
     }
     else
     {
-        while (!initialized)
+        while (!__atomic_load_n(&initialized, __ATOMIC_ACQUIRE))
             ;
-        __sync_synchronize();
         printf("cpu %d is booting with OpenSBI!\n", (int)hartid);
     }
 

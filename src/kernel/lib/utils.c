@@ -13,11 +13,18 @@ void memmove(void *dst, const void *src, uint32 n)
 {
     char *d = dst;
     const char *s = src;
-    while (n--)
+    if ((uint64)d > (uint64)s && (uint64)d - (uint64)s < n)
     {
-        *d = *s;
-        d++;
-        s++;
+        while (n)
+        {
+            n--;
+            d[n] = s[n];
+        }
+    }
+    else
+    {
+        for (uint32 i = 0; i < n; i++)
+            d[i] = s[i];
     }
 }
 

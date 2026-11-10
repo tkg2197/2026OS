@@ -17,93 +17,93 @@ rules:
 functions:
   'int uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len);':
     pre:
-      - 
+      - 内核目标缓冲区可写，页表在复制期间由调用者保持稳定。
     effects:
-      - 
+      - 逐页检查 V、U、R，按页内偏移将物理内容复制到内核。
     post:
-      - 
+      - 全部成功或 len=0 返回0。用户范围、权限或映射无效返回-1，允许已写入有效前缀。
   'int uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len);':
     pre:
-      - 
+      - 内核源缓冲区可读，页表在复制期间保持稳定。
     effects:
-      - 
+      - 逐页检查 V、U、W，再将内核内容写入用户物理页。
     post:
-      - 
+      - 全部成功或 len=0 返回0；无效范围、缺页或权限不足返回-1，可保留已写前缀。
   'int uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen);':
     pre:
-      - 
+      - 内核目标缓冲区至少有 maxlen 字节。
     effects:
-      - 
+      - 每页检查用户可读权限，从源地址读取至 NUL 或耗尽 maxlen。
     post:
-      - 
+      - 复制到 NUL（包含它）才返回0，其他情况返回-1。
   'uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len);':
     pre:
-      - 
+      - cur_heap_top 表示当前已发布的逻辑堆顶。
     effects:
-      - 
+      - 验证上界，分配并映射新堆顶跨越的页；同页内变化无需映射。
     post:
-      - 
+      - 成功返回精确字节位置；越界或资源不足返回(uint64)-1，保留原页表。
   'uint64 uvm_heap_ungrow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len);':
     pre:
-      - 
+      - cur_heap_top 表示当前已发布的逻辑堆顶，进程正在内核页表下运行。
     effects:
-      - 
+      - 保留新堆顶以下仍用到的页，解除并回收整个不再使用的页。
     post:
-      - 
+      - 成功返回新堆顶；低于 USER_HEAP_BASE 或非法旧堆顶返回(uint64)-1。
   'int64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr);':
     pre:
-      - 
+      - old_ustack_npage 与已映射的连续栈相符。
     effects:
-      - 
+      - 仅接受 [MMAP_END, old_stack_base) 缺页；向下分配 RWU 页面直至缺页所在页。
     post:
-      - 
+      - 成功返回总页数；范围无效或资源不足返回-1，旧映射与元数据保持原状。
   'void uvm_destroy_pgtbl(pgtbl_t pgtbl);':
     pre:
-      - 
+      - 页表已脱离 satp，用户页和各级页表页均归该页表独占。
     effects:
-      - 
+      - 递归释放带 U 的数据页和各级页表页。
     post:
-      - 
+      - NULL 无操作。TRAPFRAME 与 TRAMPOLINE 对应物理页仍由各自所有者管理。
   'int uvm_copy_pgtbl(pgtbl_t old, pgtbl_t new, uint64 heap_top, uint64 ustack_npage, mmap_region_t *mmap);':
     pre:
-      - 
+      - 源及目标根各自独占，源布局与 heap_top、ustack_npage、mmap 一致。
     effects:
-      - 
+      - 复制代码、堆、栈、mmap 页的内容及 R/W/X/U 权限，保留目标特殊映射。
     post:
-      - 
+      - 成功返回0，用户页独立。失败返回-1并撤销所有暂存叶项及临时页表页。
   'void mmap_init(void);':
     pre:
-      - 
+      - 启动核在发布共享初始化之前调用一次。
     effects:
-      - 
+      - 初始化自旋锁，将全部节点按索引升序链接。
     post:
-      - 
+      - N_MMAP 个节点各在池中一次。
   'mmap_region_t *mmap_region_alloc(void);':
     effects:
-      - 
+      - 在池锁下移除链头后第一个节点并初始化描述符。
     post:
-      - 
+      - 成功独占返回描述符；空池返回NULL，锁已释放。
   'void mmap_region_free(mmap_region_t *mmap);':
     pre:
-      - 
+      - 传入当前调用者独占且已从使用链摘下的节点。
     effects:
-      - 
+      - 在池锁下将节点插回链头。
     post:
-      - 
+      - 节点可复用；非法节点或重复回收属于内核错误。
   'uint64 uvm_mmap_find(mmap_region_t *head_mmap, uint64 len, mmap_region_t **p_last_mmap, mmap_region_t **p_tmp_mmap);':
     pre:
-      - 
+      - 链按 begin 排序，区间不重叠，len 为正页对齐字节数。
     effects:
-      - 
+      - 从 MMAP_BEGIN 进行首次适配搜索，同时返回该空隙相邻的前后节点。
     post:
-      - 
+      - 成功返回页对齐的区间起址，无可用空隙返回0，链不变。
   'uint64 uvm_mmap(uint64 begin, uint32 npages, int perm);':
     effects:
-      - 
+      - 验证长度、权限与地址，begin=0 时首次适配，固定地址禁止重叠。暂存页和节点后再发布区间。
     post:
-      - 
+      - 返回起始地址或失败0。相邻且权限相同的节点合并，失败恢复原映射与区间。
   'int uvm_munmap(uint64 begin, uint32 npages);':
     effects:
-      - 
+      - 先验证整个范围有覆盖，必要时预留拆分节点，再撤销映射并修剪或删除区间。
     post:
-      - 
+      - 返回0或-1。含空洞、越界或无拆分节点时均不改变页表与链。

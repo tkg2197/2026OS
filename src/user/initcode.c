@@ -40,6 +40,10 @@ int main(void)
     check(munmap((void *)addr, 3 * PGSIZE) == 0);
 
     check(syscall(1ul << 32) == -1);
+    check(syscall(SYS_brk, heap + (1ul << 32) + PGSIZE) == -1);
+    check(syscall(SYS_brk, 0) == heap);
+    check(mmap(0, (1ul << 32) + PGSIZE) == 0);
+    check(munmap((void *)addr, (1ul << 32) + PGSIZE) == -1);
     syscall(SYS_printf, "LAB5 PASS\n");
     for (;;)
         ;

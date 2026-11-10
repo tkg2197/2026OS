@@ -94,7 +94,7 @@ ECNU-OSLAB-2025-TASK
     │   │   └── type.h (CHANGE, 进程结构体里新增mmap字段)
     │   ├── syscall 系统调用模块
     │   │   ├── syscall.c (NEW, 系统调用通用逻辑)
-    │   │   ├── sysfunc.c (TODO, 各个系统调用的处理逻辑) 
+    │   │   ├── sysfunc.c (TODO, 各个系统调用的处理逻辑)
     │   │   ├── method.h (NEW)
     │   │   ├── mod.h (NEW)
     │   │   └── type.h (NEW)
@@ -302,7 +302,7 @@ static inline long __syscall6(long n, long a, long b, long c, long d, long e, lo
 
 ## 测试1：用户态和内核态的数据迁移
 
-测试逻辑: 
+测试逻辑:
 
 - 用户读取内核中的数组 (1 2 3 4 5)
 
@@ -317,7 +317,7 @@ static inline long __syscall6(long n, long a, long b, long c, long d, long e, lo
 int main()
 {
     int L[5];
-    char* s = "hello, world"; 
+    char* s = "hello, world";
     syscall(SYS_copyout, L);
     syscall(SYS_copyin, L, 5);
     syscall(SYS_copyinstr, s);
@@ -342,7 +342,7 @@ int main()
 
 `sys_brk`的效果可以进一步分为:
 
-- 空间增加: old_heap_top < new_heap_top 
+- 空间增加: old_heap_top < new_heap_top
 
 - 空间减少: old_heap_top > new_heap_top
 
@@ -395,7 +395,7 @@ mmap_region的详细介绍放在任务3和和任务4, 这里只需要注意边�
 int main()
 {
     long long heap_top = 0;
-    
+
     heap_top = syscall(SYS_brk, 0);
     heap_top = syscall(SYS_brk, heap_top + PGSIZE * 9);
     heap_top = syscall(SYS_brk, heap_top);
@@ -529,7 +529,7 @@ int main()
     int cpuid = r_tp();
 
     if(cpuid == 0) {
-        
+
         print_init();
         printf("cpu %d is booting!\n", cpuid);
         pmem_init();
@@ -537,7 +537,7 @@ int main()
         kvm_inithart();
         trap_kernel_init();
         trap_kernel_inithart();
-        
+
         // 初始化 + 初始状态显示
         mmap_init();
         mmap_show_nodelist();
@@ -563,7 +563,7 @@ int main()
         while (over_3 == false || over_4 == false);
 
         // 查看结束时的状态
-        mmap_show_nodelist();        
+        mmap_show_nodelist();
 
     } else {
 
@@ -647,7 +647,7 @@ int main()
 {
     // 建议画图理解这些地址和长度的含义
 
-    // sys_mmap 测试 
+    // sys_mmap 测试
     syscall(SYS_mmap, MMAP_BEGIN + 4 * PGSIZE, 3 * PGSIZE);
     syscall(SYS_mmap, MMAP_BEGIN + 10 * PGSIZE, 2 * PGSIZE);
     syscall(SYS_mmap, MMAP_BEGIN + 2 * PGSIZE,  2 * PGSIZE);
@@ -710,3 +710,20 @@ int main()
 经过两次实验的打磨, proczero现在已经比较强大和完善了, 但是似乎有些孤单?
 
 **我们将在下一个实验引入它的子子孙孙, 从单进程走向多进程！**
+
+## 本分支的实现与验收
+
+任务模板版本为 `4a0f4b7`。在 WSL Ubuntu 或 Linux 中执行以下命令，需安装 RISC-V GCC、binutils、QEMU、make、xxd 与 Python 3。
+
+```bash
+make build
+make run
+make build PLATFORM=vf2
+python3 tests/lab5/run.py
+```
+
+默认用户程序在 QEMU 中完成后输出 `LAB5 PASS`。验收脚本在临时目录中运行指导书的用户复制、brk、栈扩展和 mmap 用例，并验证 UART 回显、并发节点池、跨页权限、资源耗尽回滚和页表复制/销毁。QEMU 使用双核，两套平台的产物可以交替构建。脚本还检查 VF2 Image 头、入口和管理窗口。
+
+VisionFive2 参数来自 JH7110 的 [Linux SoC DTS](https://github.com/torvalds/linux/blob/v6.12/arch/riscv/boot/dts/starfive/jh7110.dtsi)、[板级 DTS](https://github.com/torvalds/linux/blob/v6.12/arch/riscv/boot/dts/starfive/jh7110-common.dtsi) 及 [U-Boot 板卡配置](https://github.com/u-boot/u-boot/blob/v2024.04/include/configs/starfive-visionfive2.h)。内核从 `0x40200000` 启动，使用 `[0x40200000, 0x48200000)` 管理窗口。有效 hart 是 1–4，PLIC S-context 是 2、4、6、8。UART0 使用 IRQ 32 和 32 位寄存器访问，timebase 为 4 MHz。
+
+**实板验收待测。** 软件交付时开发板未连接。默认镜像在 `target/vf2/kernel/kernel-vf2.bin`。如需保留验收脚本交叉构建的各个测试镜像，执行 `python3 tests/lab5/run.py --vf2-output /tmp/lab5-vf2-images`。上板前按指导书用 `bdinfo`、匹配的 DTB 和实际装载地址核对管理窗口，记录串口、各 hart 启动、时钟及各用例结果。

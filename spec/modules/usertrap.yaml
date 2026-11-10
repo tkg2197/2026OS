@@ -25,20 +25,18 @@ functions:
 
   void trap_user_handler(void):
     pre:
-    - 
+      - 用户现场已经保存，当前使用内核页表和进程内核栈，SIE关闭。
     effects:
-    - 
+      - 切换 stvec、保存 sepc。ecall 只将保存的 epc 加4，然后分发。时钟与外设中断按原因处理。合法栈缺页补齐后重试。
     post:
-    - 
-
+      - 可恢复的 trap 经 trampoline 恢复用户程序。无法恢复的用户故障报告原因并停止该用户执行。
   void trap_user_return(void):
     pre:
-    - 
+      - 在内核页表下且当前进程及 trapframe 有效。
     effects:
-    - 
+      - 关闭中断，填写内核重入所需的 trapframe 字段，设置 stvec、sepc、SPP 与 SPIE，再调用 trampoline 内 user_return。
     post:
-    - 
-
+      - 经 sret 进入 U-mode，下一次 trap 使用该用户页表的特殊映射，不返回。
   user_return:
     pre:
     - 由 trap_user_return 在 TRAMPOLINE 中以 (TRAPFRAME, MAKE_SATP(proc.pgtbl)) 调用；调用时内核页表有效，用户寄存器已保存在 trapframe 中。
