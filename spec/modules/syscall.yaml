@@ -6,7 +6,7 @@ owns:
   - src/kernel/syscall/mod.h
   - src/kernel/syscall/type.h
 state:
-  syscall_table: 固定有界分发表；编号与src/user/syscall_num.h一致，0至7依次为helloworld、copyin、copyout、copyinstr、brk、mmap、munmap、printf。
+  syscall_table: 固定有界分发表；编号与 src/user/syscall_num.h 一致，1–10 依次为 brk、mmap、munmap、print_str、print_int、getpid、fork、wait、exit、sleep。
 rules:
   - 分发和参数提取要求当前进程及trapframe有效；丢失上下文、无效内核输出指针和参数索引属于内核错误。
   - a7为调用号，a0至a5为六个原始参数，a0接收64位返回结果；只有usertrap推进epc，syscall不重复推进。
@@ -48,51 +48,50 @@ functions:
       - maxlen内包含NUL时返回0，否则返回-1；失败缓冲区可含前缀，不得当作完整字符串使用。
   "uint64 sys_brk(void);":
     effects:
-      -
+      - a0=0 查询，否则验证完整堆顶和伸缩量，成功后更新当前进程。
     post:
-      -
+      - 成功返回堆顶，失败返回(uint64)-1。
   "uint64 sys_mmap(void);":
     effects:
-      -
+      - 校验64位长度并建立 RWU 映射，起点0时首次适配。
     post:
-      -
+      - 成功返回起址，失败返回0。
   "uint64 sys_munmap(void);":
     effects:
-      -
+      - 校验64位长度并事务式解除范围。
     post:
-      -
+      - 成功返回0，失败返回(uint64)-1。
   "uint64 sys_print_str(void);":
     effects:
-      -
+      - 通过 arg_str 拷贝并输出 NUL 终止字符串。
     post:
-      -
+      - 成功返回0，无效地址或未遇 NUL 返回(uint64)-1。
   "uint64 sys_print_int(void);":
     effects:
-      -
+      - 按有符号32位十进制输出 a0 低32位。
     post:
-      -
+      - 成功返回0。
   "uint64 sys_getpid(void);":
-    effects:
-      -
+    effects: []
     post:
-      -
+      - 返回当前进程 PID。
   "uint64 sys_fork(void);":
     effects:
-      -
+      - 调用 proc_fork。
     post:
-      -
+      - 父进程返回子 PID 或失败-1，子进程返回0。
   "uint64 sys_wait(void);":
     effects:
-      -
+      - 调用 proc_wait，a0 为退出码目标地址或0。
     post:
-      -
+      - 返回回收的子 PID，失败返回(uint64)-1。
   "uint64 sys_exit(void);":
     effects:
-      -
+      - 用 a0 低32位有符号退出码调用 proc_exit。
     post:
-      -
+      - 不返回。
   "uint64 sys_sleep(void);":
     effects:
-      -
+      - 用 a0 完整的64位 tick 数调用 timer_wait。
     post:
-      -
+      - 等待满指定 tick 数后返回0，0 tick 立即返回。

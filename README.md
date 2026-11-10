@@ -520,3 +520,17 @@ int main()
 最重要的, 我们将**基于磁盘自底向上地构建文件系统**, 并赋能内存管理和进程管理模块
 
 **欢迎来到文件系统的世界!**
+
+## 本分支的实现与验收
+
+在 Lab 5 完成版上合入任务模板 `7effc11`，按 `spec/modules` 的状态机、锁交接和失败约定实现进程管理。WSL Ubuntu 或 Linux 可用以下命令复现。
+
+```bash
+make run CPUNUM=1
+make run CPUNUM=2
+python3 tests/lab6/run.py
+```
+
+QEMU 默认双核，单核与双核构建各有独立目录。默认用户入口验证 PID 1 并打印 `proczero: hello world!`。验收脚本在临时目录中用两种核数分别执行指导书的四组程序，另测内核态抢占、30 tick 睡眠、睡眠锁竞争、父子内存隔离、无效 wait 地址后的重试、进程槽和内存耗尽后的回收，以及违规子进程与首进程的故障处理。测试探针仅链接到临时验收镜像。
+
+`make CPPFLAGS=-DLAB6_TRACE` 可在重新构建时启用 fork 诊断输出。

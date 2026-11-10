@@ -4,7 +4,7 @@ owns:
 - src/kernel/boot/start.c
 - src/kernel/main.c
 state:
-  CPU_stack: 每物理hart槽位4096字节，数组整体16字节对齐；qemu分配2槽，有效hart为0..1；vf2槽位数和有效hart由学生填写的NCPU、FIRST_HART决定，FIRST_HART以下的槽位不运行。
+  CPU_stack: 每物理hart槽位4096字节，数组整体16字节对齐；QEMU 分配2槽，有效 hart 为 0..CPUNUM-1；vf2槽位数和有效hart由学生填写的NCPU、FIRST_HART决定，FIRST_HART以下的槽位不运行。
   boot_hartid: start.c定义的uint64全局变量；_entry清空BSS后记录首次进入内核的有效物理hart ID，次级入口保持其值。
   initialized: boot_hartid完成共享初始化后发布；其他hart在使用共享页表和trap状态前等待该标志。
   firmware_handoff: 首次交接以S-mode进入_entry，a0为hart ID，a1为匹配板卡的DTB地址；HSM以a0=hartid、a1=opaque进入_entry_secondary，本内核不解析a1。
@@ -15,7 +15,7 @@ rules:
 - 固件必须支持SBI TIME/HSM；首次交接只允许一个有效hart进入_entry，其余有效hart处于可由HSM启动的状态。HSM返回错误属于不可继续的启动失败，不忽略already-started或退化为少核。
 - vf2复用现有OpenSBI/U-Boot，以booti交接，要求匹配板卡的DTB、手册或DTB中的timebase和正常工作的UART0；固件已配置好的串口参数由内核继承，不重配波特率。
 - vf2的DRAM布局、内核管理窗口由学生查阅手册、DTB和bdinfo填写；OpenSBI、运行中的U-Boot、保留内存和DTB均不得与该窗口冲突。DTB应加载到窗口外，加载失败即停止，不启动旧内存内容。
-- 本规格描述模板机制及学生应完成的启动契约；start中的w_tp/main和原有进程初始化、首用户进入等实验留空仍由学生完成。
+- 启动核用 release 发布 initialized；其他 hart 用 acquire 等待共享资源就绪。
 functions:
   _entry:
     pre:
@@ -46,11 +46,11 @@ functions:
     - main开始时仍在S-mode和bare地址转换状态，tp稳定保存当前hart ID；start不执行mret且不返回。
   void main(void):
     effects:
-    - boot_hartid初始化打印、物理内存、内核页表、全局trap和进程状态，发布initialized，并遍历FIRST_HART至NCPU-1，跳过自身，通过sbi_hart_start以_entry_secondary启动其余有效hart。
+    - boot_hartid初始化打印、物理内存、内核页表、全局trap和进程状态，发布initialized，并遍历当前配置的有效 hart，跳过自身，通过sbi_hart_start以_entry_secondary启动其余有效hart。
     - 每个hart安装内核页表、本地PLIC与stvec环境；本核trap_kernel_inithart完成后，仅boot_hartid调用一次uart_enable_rx_interrupt，再执行原有timer_init，通过SBI TIME设置本核首次定时事件。
     post:
     - boot_hartid在共享初始化完成前不启动次级hart；每次HSM调用均检查sbi_ret_t.error。
-    - boot_hartid完成本地执行环境后负责proc_make_first及直接进入唯一首用户进程；其他hart等待initialized后完成本地初始化，并停在可处理中断的wfi循环。
+    - boot_hartid 在发布 initialized 之前初始化进程表，将 proczero 标记 RUNNABLE。每个启用 hart 完成本地初始化后进入调度器。
     - UART RX开放前，本核PLIC、stvec和SEIE已准备完成；不在RX路径准备前开放串口接收中断。
     - 每个有效hart恰好输出一次带OpenSBI的启动提示；共享初始化和首进程创建仅由boot_hartid执行。
     - 主流程不返回。

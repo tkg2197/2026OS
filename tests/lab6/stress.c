@@ -84,6 +84,20 @@ static void failure_and_reuse(void)
     for (int i = 0; i < 31; i++)
         check(syscall(SYS_wait, 0) > 0, "reap slot");
 
+    // Exhaust the descriptor pool partway through copying mmap metadata.
+    unsigned long base = mmap(0, PGSIZE);
+    check(base != 0, "first mmap descriptor");
+    for (int i = 1; i < 255; i++)
+    {
+        unsigned long addr = base + 2 * i * PGSIZE;
+        check(mmap((void *)addr, PGSIZE) == addr, "fill mmap descriptors");
+    }
+    check(syscall(SYS_fork) == -1, "fork descriptor exhaustion");
+    unsigned long last = base + 510 * PGSIZE;
+    check(mmap((void *)last, PGSIZE) == last, "descriptor rolled back");
+    for (int i = 0; i < 256; i++)
+        check(munmap((void *)(base + 2 * i * PGSIZE), PGSIZE) == 0, "release descriptor");
+
     const unsigned long span = 70ul << 20;
     unsigned long heap = syscall(SYS_brk, 0);
     check(syscall(SYS_brk, heap + span) == heap + span, "large heap");
@@ -123,6 +137,7 @@ int main(void)
 {
     check(syscall(SYS_getpid) == 1, "initial pid");
     check(syscall(1ul << 32 | SYS_getpid) == -1, "invalid syscall");
+    check(PROBE(6, 0) == 0, "kernel stacks and guard pages");
     isolation_and_sleep();
     failure_and_reuse();
     syscall(SYS_print_str, "LAB6 PASS\n");

@@ -84,7 +84,7 @@ functions:
     effects:
     - 构造临时根页表，为UART0一页和PLIC的PLIC_SIZE建立RW恒等映射；OpenSBI拥有的CLINT不映射。
     - 内核 [KERNEL_BASE, PGROUNDUP(KERNEL_DATA)) 建立 RX 恒等映射；其后至 ALLOC_END 建立 RW 恒等映射。
-    - TRAMPOLINE 映射 trampoline 物理页为 RX；分配清零内核页并将 KSTACK(0) 映射为 RW，保留相邻保护页。
+    - TRAMPOLINE 映射 trampoline 物理页为 RX；为 N_PROC 个槽各分配一页清零内核页，将 KSTACK(i) 映射为 RW，并保留每个栈上方未映射的保护页。
     post:
     - 全部映射无 PTE_U，完整成功后才发布 kernel_pgtbl；保留必要物理页供内核运行。
     - 必要启动分配或映射失败时回收临时根、中间页和栈页，保持 kernel_pgtbl 未发布，再 panic。

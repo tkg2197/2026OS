@@ -23,7 +23,7 @@ endif
 
 # Isolate one-hart objects so switching CPUNUM does not require make clean.
 CPUNUM ?= 2
-ifeq ($(filter $(CPUNUM),1 2),)
+ifeq ($(filter 1 2,$(CPUNUM)),)
 $(error CPUNUM must be 1 or 2)
 endif
 ifneq ($(words $(CPUNUM)),1)

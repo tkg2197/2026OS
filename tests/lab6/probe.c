@@ -38,6 +38,21 @@ uint64 lab6_test_probe(void)
         }
         return 0;
     }
+    case 6: {
+        pgtbl_t root = (pgtbl_t)((r_satp() & ((1ull << 44) - 1)) << 12);
+        for (int i = 0; i < N_PROC; i++)
+        {
+            pte_t *stack = vm_getpte(root, KSTACK(i), false);
+            pte_t *guard = vm_getpte(root, KSTACK(i) + PGSIZE, false);
+            if (!stack || (*stack & (PTE_V | PTE_PERM)) != (PTE_V | PTE_R | PTE_W) ||
+                (guard && (*guard & PTE_V)))
+                return -1;
+            for (int j = 0; j < i; j++)
+                if (PTE_TO_PA(*stack) == PTE_TO_PA(*vm_getpte(root, KSTACK(j), false)))
+                    return -1;
+        }
+        return 0;
+    }
     default:
         return -1;
     }

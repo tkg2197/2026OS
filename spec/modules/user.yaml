@@ -5,21 +5,11 @@ owns:
 - src/user/syscall_arch.h
 - src/user/syscall_num.h
 rules:
-- 用户调用通过 ecall，a7 为调用号、a0..a5 为参数、a0 为结果；内联汇编声明内存影响。
-- SYS_helloworld=0；main 明确位于 USER_BASE，不能依赖编译器函数排列。
+- a7 为调用号，a0..a5 为参数，a0 为结果；内联 ecall 声明 memory clobber。
+- main 明确放在 USER_BASE=0x1000；保留 Lab5 的 mmap 和 munmap 封装。
 functions:
   int main(void):
     effects:
-    - 运行数据复制、堆伸缩、多页栈扩展以及mmap/munmap组合自检。
+    - 经 SYS_getpid 验证首进程 PID 为1，经 SYS_print_str 输出问候。
     post:
-    - 成功输出LAB5 PASS并留在用户态，供后续串口和时钟测试。
-  'static inline unsigned long mmap(void *start, unsigned long len);':
-    effects:
-    - 经 ecall 调用 SYS_mmap，保留完整64位长度。
-    post:
-    - 返回映射起址；失败返回0。
-  'static inline int munmap(void *start, unsigned long len);':
-    effects:
-    - 经 ecall 调用 SYS_munmap，保留完整64位长度。
-    post:
-    - 成功返回0；失败返回-1。
+    - 用户程序保持可抢占的循环。验收脚本另行替换入口运行完整测试用例。

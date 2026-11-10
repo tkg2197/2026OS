@@ -18,9 +18,9 @@ state:
   stval: 最近一次监督者异常附加值。
   time: OpenSBI允许S-mode读取的平台递增时间计数器。
   tp: 内核期间的当前hart ID；初值来自OpenSBI传入_entry的a0，用户期间由用户上下文管理。
-  boot_hartid: 首次入口清空BSS后记录的物理hart ID；可为平台内任意有效hart，作为共享初始化和全局ticks的归属依据。
+  boot_hartid: 首次入口清空BSS后记录的物理hart ID；可为平台内任意有效hart，作为共享初始化和 VF2 全局 tick 的归属依据。
 rules:
-- PLATFORM=qemu时NCPU=2、FIRST_HART=0，有效物理hart为0..1，QEMU的CPUNUM固定为2。
+- PLATFORM=qemu时NCPU=2、FIRST_HART=0，有效物理 hart 为 0..CPUNUM-1，CPUNUM 支持 1 或 2。
 - PLATFORM=vf2定义VISIONFIVE2；学生查阅手册或DTB填写NCPU、FIRST_HART。有效hart满足FIRST_HART<=hartid<NCPU，NCPU是数组槽位数，FIRST_HART以下的槽位不运行。
 - 两平台有效hart均满足FIRST_HART <= hartid < NCPU；tp和CPU_stack、cpus[]索引继续使用物理hart ID，不转换成逻辑CPU编号。
 - arch/type.h的纯预处理常量供C和汇编共用，typedef和C声明由__ASSEMBLER__保护；boot_hartid以extern uint64声明。

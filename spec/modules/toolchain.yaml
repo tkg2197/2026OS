@@ -9,8 +9,9 @@ state:
   target: TARGET=target/$(PLATFORM)，内核、用户目标文件和依赖均按平台隔离；INTERVAL在trap/type.h中配置。
   initcode: 生成头为$(TARGET)/user/initcode.h，通过-I$(TARGET)/user及#include "initcode.h"使用，保留target_user_initcode及长度符号。
 rules:
+- CPUNUM=1 的 QEMU 构建产物独立保存在 target/qemu-1；默认双核保存在 target/qemu。
 - 使用freestanding RV64GC/lp64d C与汇编，明确-march=rv64gc -mabi=lp64d，不链接宿主标准库；保留原有警告、-Werror、优化和medany设置，不填学生留空或抑制诊断以完成构建。
-- CPUNUM仅描述QEMU运行核数，默认为2且只允许2，其他值由make明确报错；vf2的NCPU由学生填写，表示物理hart槽位数，不传给模拟器。
+- CPUNUM描述QEMU运行核数，默认为2且允许1或2，其他值由make明确报错；vf2的NCPU由学生填写，表示物理hart槽位数，不传给模拟器。
 - '不支持的PLATFORM值通过$(error unsupported PLATFORM: $(PLATFORM))拒绝；显式默认目标为build，不受包含的依赖文件影响。'
 - 复用源kernel.ld，以$(CC) -E -P -x c和当前平台宏生成$(TARGET)/kernel/kernel.ld，再交给链接器；规则显式依赖源脚本，预处理不使用-MD，不让.d或预处理依赖覆盖源kernel.ld。
 - qemu入口为0x80200000，OpenSBI占用0x80000000起的前2MiB；vf2入口以生成的kernel.ld为准，须与学生填写的KERNEL_BASE一致。两平台保留原PHDRS和text/trampoline/data布局，trampoline单独页对齐且不超过4096字节。

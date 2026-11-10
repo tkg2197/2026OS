@@ -5,8 +5,8 @@ owns:
 - src/kernel/proc/type.h
 - src/kernel/proc/method.h
 state:
-  proc_list: NPROC个进程槽；UNUSED、EMBRYO、SLEEPING、RUNNABLE、RUNNING、ZOMBIE状态由各自proc.lock保护。
-  proc_t: 包含lock、state、pid、parent、exit_code、sleep_space、kstack、pgtbl、trapframe、heap_top、ustack_npage、mmap、context、name。
+  proc_list: N_PROC（32）个进程槽；UNUSED、EMBRYO、SLEEPING、RUNNABLE、RUNNING、ZOMBIE状态由各自proc.lk保护。
+  proc_t: 包含lk、state、pid、parent、exit_code、sleep_space、kstack、pgtbl、trapframe、heap_top、ustack_npage、mmap、context、name。
   cpus: 每hart的cpu_t含当前proc、scheduler上下文、noff中断关闭嵌套数和intena最外层关闭前的使能状态。
   context_t: 按ra、sp、s0至s11顺序存放14个uint64，与swtch的保存恢复布局一致。
   user_trapframe_t: 36个uint64依次为kernel_satp、kernel_sp、kernel_trap、epc、kernel_hartid、ra、sp、gp、tp、t0、t1、t2、s0、s1、a0至a7、s2至s11、t3至t6；与trampoline偏移一致。
@@ -35,115 +35,118 @@ functions:
     - 返回当前进程；scheduler无当前进程时返回NULL。
   void proc_init(void);:
     pre:
-    -
+      - 启动核独占调用，内核栈已映射，尚无调度器运行。
     effects:
-    -
+      - 初始化 pid_lock、wait_lock 及所有槽的锁、状态和内核栈地址。
     post:
-    -
+      - 所有槽均为 UNUSED，下一 PID 为1，不改变每 hart 的中断记账。
   pgtbl_t proc_pgtbl_init(uint64 trapframe);:
     pre:
-    -
+      - trapframe 是调用者持有的页对齐物理页。
     effects:
-    -
+      - 建立空根及 supervisor-only 的 RX trampoline、RW trapframe 映射。
     post:
-    -
+      - 成功返回根；失败回收临时页表并返回NULL，trapframe 仍归调用者。
   proc_t *proc_alloc(void);:
     effects:
-    -
+      - 锁下选取 UNUSED 槽并标记 EMBRYO；分配 PID、trapframe、页表和初始上下文。
     post:
-    -
+      - 成功带进程锁返回 EMBRYO，ctx.ra 为 proc_return。资源不足返回NULL，不泄漏资源或槽。
   void proc_free(proc_t *p);:
     pre:
-    -
+      - 持有 p->lk，p 为未发布 EMBRYO 或已切离 CPU 的 ZOMBIE。回收 ZOMBIE 还需持有 wait_lock。
     effects:
-    -
+      - 释放页表、用户页、trapframe 和 mmap 节点；清空槽内动态状态，保留内核栈映射。
     post:
-    -
+      - 槽标记 UNUSED 且进程锁仍由调用者持有。
   void proc_make_first(void);:
     pre:
-    -
+      - 启动核已完成共享内存和进程表初始化。
     effects:
-    -
+      - 构造 PID 1、用户镜像、用户栈与初始上下文，设置 proczero 指针并发布 RUNNABLE。
     post:
-    -
+      - 解锁返回，由调度器首次运行；必要启动资源不足则回收后报告错误。
   void proc_return(void) __attribute__((noreturn));:
     pre:
-    -
+      - 由调度器首次切入，持有当前 RUNNING 进程的锁，使用该进程的内核栈。
     effects:
-    -
+      - 释放进程锁，调用 trap_user_return。
     post:
-    -
+      - 进入用户态，永不返回。
   int proc_fork(void);:
     pre:
-    -
+      - 当前进程为 RUNNING，独占自己的用户地址空间。
     effects:
-    -
+      - 预留子槽，复制用户页、trapframe、mmap 描述及元数据，子 a0 设为0；按 wait_lock 到子锁的顺序设置 parent 和 RUNNABLE。
     post:
-    -
+      - 父进程得到子 PID，子进程得到0；失败返回-1并回收全部未发布的资源。
   void proc_yield(void);:
+    pre:
+      - 当前进程为 RUNNING，未持有自旋锁。
     effects:
-    -
+      - 获取当前进程锁，置 RUNNABLE，经 proc_sched 交出 CPU。
     post:
-    -
+      - 下次运行后解锁返回，允许在另一个 hart 上恢复。
   void proc_sched(void);:
     pre:
-    -
+      - 当前进程锁是当前 hart 唯一持有的锁，SIE=0，进程状态已离开 RUNNING。
     effects:
-    -
+      - 保存当前的 intena 记账，切换到当前 hart 的调度器；恢复后写回到当时所在 hart。
     post:
-    -
+      - 若返回，调度器已将当前进程置为 RUNNING，进程锁仍持有。
   void proc_scheduler(void) __attribute__((noreturn));:
     pre:
-    -
+      - 本 hart 已启用内核页表、trap 与本地时钟。
     effects:
-    -
+      - 轮询进程表，锁下将 RUNNABLE 置为 RUNNING 并设置 cpu.proc，再切入进程；返回后清除 cpu.proc 并解锁。
     post:
-    -
+      - 持续运行；空闲时等待中断。进程锁随 swtch 交接，同一进程不会同时在两个 hart 运行。
   swtch:
     pre:
-    -
+      - old 和 new 为互不重叠的有效上下文，目标 sp 和 ra 有效。
     effects:
-    -
+      - 保存原 ra、sp 和 s0..s11，再装载目标上下文。
     post:
-    -
+      - 跳转到目标 ra；本次调用只在原上下文被重新装载后继续。
   void proc_sleep(void *sleep_space, spinlock_t *lock);:
     pre:
-    -
+      - 在当前 RUNNING 进程上下文，sleep_space 非空，持有保护等待条件的 lock。
     effects:
-    -
-    -
+      - 先取得 p->lk，再释放条件锁；登记通道及 SLEEPING，切换调度器，醒来后清除通道。
+    post:
+      - 恢复到 RUNNING 并释放 p->lk，重新持有条件锁返回，由调用者重新检查条件。
   void proc_wakeup(void *sleep_space);:
     pre:
-    -
+      - 调用者持有保护等待条件的锁。
     effects:
-    -
+      - 逐个获取非当前进程的锁，匹配通道的 SLEEPING 进程改为 RUNNABLE。
     post:
-    -
+      - 唤醒全部匹配等待者，调用者保持条件锁；硬中断中可以调用。
   void proc_try_wakeup(proc_t *p);:
     pre:
-    -
+      - 调用者持有目标进程锁及 wait_lock。
     effects:
-    -
+      - 若目标正在自身地址通道等待子进程，标记 RUNNABLE。
     post:
-    -
+      - 其他通道或状态均保持原状。
   void proc_reparent(proc_t *parent);:
     pre:
-    -
+      - 调用者持有 wait_lock。
     effects:
-    -
+      - 退出者不是 proczero 时，将其子进程的 parent 指向 proczero 并唤醒收养者。
     post:
-    - 。
+      - 不再有进程将退出者作为 parent；proczero 即使成为 ZOMBIE 也保留为收养者。
   void proc_exit(int exit_code) __attribute__((noreturn));:
     pre:
-    -
+      - 当前进程为 RUNNING。
     effects:
-    -
+      - 在 wait_lock 下完成过继并唤醒父进程，锁下记录退出码、发布 ZOMBIE，再释放 wait_lock 并切离 CPU。
     post:
-    -
+      - 不返回。其资源由父进程 wait 回收；proczero 的 ZOMBIE 槽保留至重启。
   int proc_wait(uint64 user_addr);:
     pre:
-    -
+      - 当前 RUNNING 进程等待自身子进程；user_addr=0 表示跳过状态复制。
     effects:
-    -
+      - 持有 wait_lock 检查子进程；无 ZOMBIE 但有子进程时原子睡眠。找到 ZOMBIE 后先复制退出码，再释放槽。
     post:
-    -
+      - 返回已回收子进程 PID。无子进程或复制失败返回-1，复制失败不回收该子进程。

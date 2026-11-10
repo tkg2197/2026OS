@@ -27,9 +27,9 @@ functions:
     pre:
       - 用户现场已经保存，当前使用内核页表和进程内核栈，SIE关闭。
     effects:
-      - 切换 stvec、保存 sepc。ecall 只将保存的 epc 加4，然后分发。时钟与外设中断按原因处理。合法栈缺页补齐后重试。
+      - 切换 stvec、保存 sepc。ecall 只将保存的 epc 加4，然后分发。时钟与外设中断按原因处理，时钟中断处理完后 proc_yield。合法栈缺页补齐后重试。
     post:
-      - 可恢复的 trap 经 trampoline 恢复用户程序。无法恢复的用户故障报告原因并停止该用户执行。
+      - 可恢复的 trap 经 trampoline 恢复用户程序。无法恢复的用户故障报告原因并调用 proc_exit(-1)，首进程同样进入 ZOMBIE。
   void trap_user_return(void):
     pre:
       - 在内核页表下且当前进程及 trapframe 有效。
