@@ -19,6 +19,8 @@ void main(void)
         pmem_init();
         kvm_init();
         mmap_init();
+        proc_init();
+        proc_make_first();
 
         // trap中各个CPU共享的初始化: PLIC和系统时钟
         // 必须放在其他hart启动之前, 否则它们可能在初始化完成前就走进中断
@@ -26,7 +28,12 @@ void main(void)
 
         __atomic_store_n(&initialized, 1, __ATOMIC_RELEASE);
 
-        for (uint64 id = FIRST_HART; id < NCPU; id++)
+#ifdef VISIONFIVE2
+        const uint64 hart_limit = NCPU;
+#else
+        const uint64 hart_limit = QEMU_HARTS;
+#endif
+        for (uint64 id = FIRST_HART; id < hart_limit; id++)
         {
             if (id == boot_hartid)
                 continue;
@@ -59,9 +66,5 @@ void main(void)
     // 设置本CPU的第一次时钟事件, 并打开S-mode时钟中断
     timer_init();
 
-    if (hartid == boot_hartid)
-        proc_make_first();
-
-    while (1)
-        asm volatile("wfi");
+    proc_scheduler();
 }

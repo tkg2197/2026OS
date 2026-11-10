@@ -1,0 +1,34 @@
+module: kernel/sleeplock
+owns:
+  - src/kernel/lock/sleeplock.c
+state:
+  sleeplock_t: 含保护锁lock、locked、持有者pid及名称；类型及声明由kernel/lock的头文件提供。
+rules:
+  - 获取睡眠锁只能发生于可睡眠进程上下文；竞争者在同一锁对象通道上循环检查条件，不在硬中断中获取。
+  - 修改持有状态与sleep/wakeup均在内部自旋锁保护下协调，唤醒不等于已取得睡眠锁。
+functions:
+  "void sleeplock_init(sleeplock_t *lk, const char *name);":
+    effects:
+
+    post:
+
+  "bool sleeplock_holding(sleeplock_t *lk);":
+    pre:
+
+    effects:
+
+    post:
+
+  "void sleeplock_acquire(sleeplock_t *lk);":
+    pre:
+
+    effects:
+
+    post:
+
+  "void sleeplock_release(sleeplock_t *lk);":
+    pre:
+
+    effects:
+
+    post:

@@ -5,50 +5,145 @@ owns:
 - src/kernel/proc/type.h
 - src/kernel/proc/method.h
 state:
-  cpus: 每hart的当前进程指针与保存的内核上下文；由OpenSBI交付并写入tp的物理hart ID直接索引。qemu有效hart为0..1，FIRST_HART=0、NCPU=2；vf2的FIRST_HART、NCPU由学生填写，FIRST_HART以下的槽位不运行。
-  proczero: 唯一用户进程，拥有用户页表、trapframe、用户代码页和栈页；使用预先映射的 KSTACK(0)。
-  context_t: 依次为 ra、sp、s0..s11 的 64 位槽；C 与 swtch 汇编布局一致。
-  user_trapframe_t: 288 字节：前五槽为 kernel_satp/kernel_sp/kernel_trap/epc/kernel_hartid，其后按给定头文件排列全部用户整数寄存器；a0
-    偏移112，t6偏移280。
-  trapframe_alias: trapframe 页在用户页表中以 TRAPFRAME 出现（RW，不含 PTE_U）；内核页表不映射 TRAPFRAME，内核经恒等映射以物理地址访问同一页，proc.tf 保存该内核可见地址。
+  proc_list: NPROC个进程槽；UNUSED、EMBRYO、SLEEPING、RUNNABLE、RUNNING、ZOMBIE状态由各自proc.lock保护。
+  proc_t: 包含lock、state、pid、parent、exit_code、sleep_space、kstack、pgtbl、trapframe、heap_top、ustack_npage、mmap、context、name。
+  cpus: 每hart的cpu_t含当前proc、scheduler上下文、noff中断关闭嵌套数和intena最外层关闭前的使能状态。
+  context_t: 按ra、sp、s0至s11顺序存放14个uint64，与swtch的保存恢复布局一致。
+  user_trapframe_t: 36个uint64依次为kernel_satp、kernel_sp、kernel_trap、epc、kernel_hartid、ra、sp、gp、tp、t0、t1、t2、s0、s1、a0至a7、s2至s11、t3至t6；与trampoline偏移一致。
+  pid_lock: 保护单调分配的pid，首个pid为1。
+  wait_lock: 保护parent关系和wait检查条件至睡眠的同步；其锁序早于任意进程锁。
+  proczero: 首进程及孤儿收养者；正常实验流程持续运行并回收子进程，若死亡则保留ZOMBIE槽直到重启。
 rules:
-- 首进程构造完成前不得发布为运行状态；失败不留下半初始化进程。
-- 虚拟地址零页不映射；TRAMPOLINE RX 和 TRAPFRAME RW 不含 PTE_U；用户代码 RXU、栈 RWU。
-- 本阶段不引入多进程 scheduler；首进程通过 swtch 与 trap_user_return 首次进入用户态。
-- cpu.proc 只在页表、trapframe、用户栈与代码页全部就绪后写入一次；本阶段仅启动核boot_hartid发布并运行proczero，其他有效hart驻留，不引入调度行为。
+- 一个进程至多在一个hart上RUNNING；每个进程槽拥有独立的一页内核栈及相邻不可访问的guard page。
+- EMBRYO尚不可调度；地址空间、trapframe、父子关系完整后才能发布为RUNNABLE。
+- 需要同时持有wait_lock和进程锁时，必须先获取wait_lock；不得持进程锁等待wait_lock。
+- scheduler与被调度进程跨swtch交接同一进程锁；重新运行的进程按当前hart恢复中断记账，不假定仍在原hart。
+- cpus.noff/intena由lock模块维护；proc_init不得在已有中断嵌套或持锁期间清零它们。
+- 进程退出只发布ZOMBIE；wait负责释放用户页、页表页、trapframe和mmap节点，内核栈保留给进程槽复用。
 functions:
-  cpu_t *mycpu(void):
+  cpu_t *mycpu(void);:
     pre:
-    - 当前在S-mode，tp保存OpenSBI交付的有效物理hart ID，满足FIRST_HART<=hart<NCPU；不转换为逻辑CPU编号。
-    effects: []
-    post:
-    - 返回 tp 对应的 cpus 元素；无效 hart id 是内核不变量错误。
-
-  proc_t *myproc(void):
-    pre:
-    - 当前在S-mode，tp 保存有效 hart ID。
-    effects: []
-    post:
-    - 返回当前 hart 的进程指针，允许 NULL；cpu.proc 只在首进程构造完成后写入，读取无需关中断。
-
-  pgtbl_t proc_pgtbl_init(uint64 trapframe):
-    pre:
-      - trapframe 为调用者拥有的页对齐物理页。
+    - 当前hart的tp包含有效hart编号；调用者关闭中断以避免使用期间迁移。
     effects:
-      - 分配空根，将 TRAMPOLINE 映为 RX、TRAPFRAME 映为 RW，两者均不含 U。
+    - 读取当前hart编号。
     post:
-      - 成功返回页表；失败返回NULL且回收临时页表，trapframe所有权不变。
-  void proc_make_first(void):
-    pre:
-      - 启动核已启用内核页表，完成本地 trap 初始化。
+    - 返回对应cpu_t；非法编号属于内核错误并panic。
+  proc_t *myproc(void);:
     effects:
-      - 构造 PID 1 的代码页、栈页、特殊映射与上下文，最后发布 cpu.proc，执行 swtch。
+    - 在临时关闭中断的保护下读取当前hart的proc并恢复原中断嵌套。
     post:
-      - 以 USER_BASE 和 USER_STACK_TOP 进入用户态，不返回；构造失败先清理再报告启动错误。
-  void swtch(context_t *old, context_t *new):
+    - 返回当前进程；scheduler无当前进程时返回NULL。
+  void proc_init(void);:
     pre:
-    - old/new 是互不重叠的可读写有效 context_t；目标 sp/ra 有效。
+    -
     effects:
-    - 写 old 上下文，替换当前寄存器和控制流。
+    -
     post:
-    - 保存当前 ra/sp/s0..s11 到 old，恢复 new 对应寄存器，经恢复的 ra 继续；old 将来被恢复时，本次调用才继续返回。
+    -
+  pgtbl_t proc_pgtbl_init(uint64 trapframe);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  proc_t *proc_alloc(void);:
+    effects:
+    -
+    post:
+    -
+  void proc_free(proc_t *p);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  void proc_make_first(void);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  void proc_return(void) __attribute__((noreturn));:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  int proc_fork(void);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  void proc_yield(void);:
+    effects:
+    -
+    post:
+    -
+  void proc_sched(void);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  void proc_scheduler(void) __attribute__((noreturn));:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  swtch:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  void proc_sleep(void *sleep_space, spinlock_t *lock);:
+    pre:
+    -
+    effects:
+    -
+    -
+  void proc_wakeup(void *sleep_space);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  void proc_try_wakeup(proc_t *p);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  void proc_reparent(proc_t *parent);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    - 。
+  void proc_exit(int exit_code) __attribute__((noreturn));:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -
+  int proc_wait(uint64 user_addr);:
+    pre:
+    -
+    effects:
+    -
+    post:
+    -

@@ -1,4 +1,5 @@
 #include "mod.h"
+#include "../proc/mod.h"
 
 static pgtbl_t kernel_pgtbl;
 extern char trampoline[];
@@ -166,17 +167,28 @@ void kvm_init(void)
         vm_mappages(root, data, data, (uint64)ALLOC_END - data, PTE_R | PTE_W) ||
         vm_mappages(root, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X))
         goto fail;
-    void *stack = pmem_alloc(true);
-    if (!stack)
-        goto fail;
-    if (vm_mappages(root, KSTACK(0), (uint64)stack, PGSIZE, PTE_R | PTE_W))
+    for (int i = 0; i < N_PROC; i++)
     {
-        pmem_free((uint64)stack, true);
-        goto fail;
+        void *stack = pmem_alloc(true);
+        if (!stack)
+            goto free_stacks;
+        if (vm_mappages(root, KSTACK(i), (uint64)stack, PGSIZE, PTE_R | PTE_W))
+        {
+            pmem_free((uint64)stack, true);
+            goto free_stacks;
+        }
     }
     kernel_pgtbl = root;
     return;
 
+free_stacks:
+    for (int i = 0; i < N_PROC; i++)
+    {
+        pte_t *pte = vm_getpte(root, KSTACK(i), false);
+        if (!pte || !(*pte & PTE_V))
+            break;
+        vm_unmappages(root, KSTACK(i), PGSIZE, true);
+    }
 fail:
     vm_freewalk(root);
     panic("kvm_init");

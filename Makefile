@@ -21,13 +21,16 @@ ifneq ($(DETECTED_TOOLPREFIX),)
 TOOLPREFIX = $(DETECTED_TOOLPREFIX)
 endif
 
-# 配置CPU核心数量, QEMU固定为2
+# Isolate one-hart objects so switching CPUNUM does not require make clean.
 CPUNUM ?= 2
-ifneq ($(CPUNUM),2)
-$(error Lab5 requires CPUNUM=2)
+ifeq ($(filter $(CPUNUM),1 2),)
+$(error CPUNUM must be 1 or 2)
 endif
-TARGET = target/$(PLATFORM)
-CFLAGS += -I$(TARGET)/user
+ifneq ($(words $(CPUNUM)),1)
+$(error CPUNUM must be 1 or 2)
+endif
+TARGET = target/$(PLATFORM)$(if $(filter qemu,$(PLATFORM)),$(if $(filter 1,$(CPUNUM)),-1))
+CFLAGS += -I$(TARGET)/user -DQEMU_HARTS=$(CPUNUM)
 ifeq ($(PLATFORM),vf2)
 CFLAGS += -DVISIONFIVE2
 endif

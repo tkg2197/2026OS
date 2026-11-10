@@ -1,48 +1,20 @@
-system:
-  name: xv6教学内核Lab5
-  language: C与RISC-V汇编
-  stage: 用户虚拟内存与系统调用
+system: RV64教学内核Lab6：通过学生契约驱动代码生成，建立可抢占的多进程生命周期。
 machine:
-  model: QEMU virt（默认）或StarFive VisionFive2（JH7110）
-  default_platform: qemu
   isa: RV64GC
-  abi: lp64d
-  memory: 128MiB
-  page_size: 4096
-  harts:
-    default: 2
-    allowed: [2]
-    scope: 仅描述QEMU运行核数，CPUNUM固定为2；VF2的hart_slots由学生查阅手册或DTB后填写，不是QEMU运行核数。
-  platforms:
-    qemu:
-      ram_base: 0x80000000
-      kernel_base: 0x80200000
-      managed_end: 0x88200000
-      active_harts: [0, 1]
-      hart_slots: 2
-      timebase_hz: 10000000
-    vf2:
-      ram_base: 0x40000000
-      kernel_base: 0x40200000
-      managed_end: 0x48200000
-      active_harts: [1, 2, 3, 4]
-      hart_slots: 5
-      timebase_hz: 4000000
-rules:
-  - 本规范定义阶段需求，源码与旧文本的差异按本规范修正。
-  - 沿用Lab4内核内存、锁、trap及上下文切换；Lab5首用户进程由boot_hartid直接swtch，辅助hart留在内核。
-  - 进程地址空间以heap_top、ustack_npage和mmap链描述，元数据只在映射操作成功后发布。
-  - 用户输入或资源不足返回服务失败；无法恢复的用户异常停止该用户程序；内核不变量错误panic。
-  - 映射修改失败保留操作前映射及元数据并回收临时资源；用户copy失败允许目标已有前缀。
-non_goals:
-  - 调度器与多进程生命周期
-  - fork、wait、exec与文件系统
-  - 通过兼容层保留旧接口或编译器访问顺序规避缺页问题
-  - HAL、设备框架、完整DTB解析、存储驱动及裸扇区烧录；不构建或刷写OpenSBI/U-Boot。
+  board: QEMU virt
+  memory: 128MiB，从0x80000000开始
+  harts: 支持1或2，默认2；每hart进入scheduler
 mechanisms:
-  - 用户页表权限验证及逐页copyin、copyout、copyinstr
-  - brk控制连续堆，load/store缺页补齐合法栈范围内的连续页面
-  - mmap有序区间管理、节点池、兼容相邻合并及munmap裁剪拆分
-  - 用户页表独立复制与按所有权销毁
-  - a7编号及a0至a5参数的有界系统调用表
-  - 明确链接main到用户镜像基址，trampoline完成用户和内核上下文切换
+  - 延续Lab5的安全用户复制、动态堆栈、mmap及地址空间复制销毁。
+  - 进程状态机、独立内核栈、上下文切换和内核态/用户态时钟抢占。
+  - fork、exit、wait、sleep/wakeup、睡眠锁及系统调用ABI。
+rules:
+  - modules是完整现行契约；patches只描述阶段学习增量及可观察验收，不复制函数契约。
+  - 普通用户错误返回失败或结束违规进程，资源不足不发布半成品；内核不变量破坏和无法启动才panic。
+  - 只有hart0更新共享tick；条件等待遵守锁交接协议，硬中断不得睡眠。
+  - 首进程正常运行时收养并wait孤儿；首进程退出或用户故障也经exit进入ZOMBIE并停止运行，不使系统panic。
+  - 首进程ZOMBIE保留到重启，不被wait回收，仍是孤儿收养目标；其他进程继续调度。
+non_goals:
+  - 文件系统、exec、文件描述符和信号。
+  - 首进程死亡后的完整孤儿回收，以及新增专用reaper进程。
+  - 公平调度策略、优先级、多线程和写时复制。

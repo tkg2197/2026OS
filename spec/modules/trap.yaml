@@ -122,3 +122,12 @@ functions:
     post:
     - ra偏移0，帧基址形式的sp偏移8，gp偏移16，tp偏移24，a0偏移72，t6偏移240。
     - tp不从保存区恢复，保持内核hart ID；其余已保存寄存器恢复，sp增加256后通过sret返回。
+
+
+  "void timer_wait(uint64 ntick);":
+    pre:
+      -
+    effects:
+      -
+    post:
+      -

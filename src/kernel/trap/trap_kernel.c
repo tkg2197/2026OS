@@ -93,6 +93,8 @@ void trap_kernel_handler()
 
         case 5:
             timer_interrupt_handler();
+            if (myproc())
+                proc_yield();
             break;
         case 9:
             external_interrupt_handler();
@@ -111,6 +113,8 @@ void trap_kernel_handler()
 
         case 5:
             timer_interrupt_handler();
+            if (myproc())
+                proc_yield();
             break;
         case 9:
             external_interrupt_handler();
@@ -121,6 +125,11 @@ void trap_kernel_handler()
             panic("trap_kernel_handler");
         }
     }
+
+    // The process may have slept on this kernel stack or migrated to a
+    // different hart while handling the timer interrupt.
+    w_sepc(sepc);
+    w_sstatus(sstatus);
 }
 
 // 外设中断处理 (基于PLIC，lab-3只需要识别和处理UART中断)
@@ -144,7 +153,10 @@ void timer_interrupt_handler()
     if (sbi_set_timer(r_time() + INTERVAL).error != SBI_SUCCESS)
         panic("sbi_set_timer");
 
-    // 只由启动核更新共享时钟。
+#ifdef VISIONFIVE2
     if (r_tp() == boot_hartid)
+#else
+    if (r_tp() == 0)
+#endif
         timer_update();
 }

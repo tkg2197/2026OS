@@ -18,7 +18,10 @@ void trap_user_handler(void)
         syscall();
     }
     else if (cause == ((1ull << 63) | 5))
+    {
         timer_interrupt_handler();
+        proc_yield();
+    }
     else if (cause == ((1ull << 63) | 9))
         external_interrupt_handler();
     else if (cause == 13 || cause == 15)
@@ -36,9 +39,7 @@ void trap_user_handler(void)
 
 fault:
     printf("user fault pid=%d cause=%x addr=%x\n", p->pid, cause, r_stval());
-    intr_on();
-    for (;;)
-        asm volatile("wfi");
+    proc_exit(-1);
 }
 
 void trap_user_return(void)
