@@ -1,6 +1,11 @@
 #pragma once
 #include "../lock/type.h"
 
+// scause 的最高位区分中断和同步异常。
+#define SCAUSE_INTERRUPT (1ull << 63)
+#define SCAUSE_S_TIMER (SCAUSE_INTERRUPT | 5)
+#define SCAUSE_S_EXTERNAL (SCAUSE_INTERRUPT | 9)
+
 // platform-level interrupt controller (PLIC)
 // 接收外部中断源: 主要是外设中断
 #define PLIC_BASE 0x0c000000ul
