@@ -2,6 +2,8 @@
 
 （因为还没写lab1的readme，这篇readme会包含所有文件的解析……）
 
+`make run` 默认执行课程 README 第三阶段的第二个用例，检查两个虚拟地址的映射、权限和解映射。运行 `python3 tests/lab2/run.py --output /tmp/lab2-required` 可分次验证双核物理页分配、内核区和用户区耗尽、用户页回收、页表打印与映射断言。耗尽用例各自独立启动 QEMU。
+
 
 
 ## Opensbi
@@ -531,18 +533,17 @@ pa = PTE_TO_PA(*pte) + (va & (VM_LEVEL_SIZE(level) - 1));
 
 首次截图时，本地工作目录已经加入后续实验的进程和中断代码，其中 `src/kernel/proc/proc.c` 的 `proc_pgtbl_init()` 等函数尚未完成，该混合工作区完整 `make -B build` 返回 2。**首次截图中的 30 项通过结果针对单独构建的 Lab2 模块，不能据此声称该混合工作区完整构建成功。** 完整失败日志保留在 [full-project.build.log](./tests/lab2/results/full-project.build.log)。
 
-测试脚本将当前 `src` 和链接配置复制到 `/tmp/os2026-lab2-readme-*`，只在副本中替换 `main.c`，并通过 Makefile 的 `KernelOBJ` 参数选择 Lab2 模块，排除未完成的后续实验 C 文件。该混合工作区的链接脚本需要 `trampoline.S`，因此保留该汇编；纯 Lab2 检出没有此文件时，脚本自动跳过。原入口的冒烟测试也仅在副本中省略 `trap_kernel_init()`、`trap_kernel_inithart()`、`timer_init()` 三处后续实验调用。`pmem.c`、`heap.c`、`kvm.c` 均直接编译当前实现，没有打补丁。
+测试脚本将当前 `src` 和链接配置复制到 `/tmp/os2026-lab2-readme-*`，只在副本中替换 `main.c`，并通过 Makefile 的 `KernelOBJ` 参数选择 Lab2 模块，排除未完成的后续实验 C 文件。该混合工作区的链接脚本需要 `trampoline.S`，因此保留该汇编；纯 Lab2 检出没有此文件时，脚本自动跳过。当时的原入口冒烟测试也仅在副本中省略 `trap_kernel_init()`、`trap_kernel_inithart()`、`timer_init()` 三处后续实验调用。`pmem.c`、`heap.c`、`kvm.c` 均直接编译当前实现，没有打补丁。
 
 ![完整构建失败与Lab2测试范围](./pictures/lab2/12-build-scope.jpg)
 
 **上传 GitHub 前的纯 Lab2 复查：** 另从已提交的 `lab2` 建立干净副本，补齐 `src/kernel/mem/mod.h` 对 `../trap/type.h` 的显式包含，确保页表模块直接获得 PLIC 常量。此时完整 `make -B build` 返回 **0**，全部 **30 项测试再次符合预期**。这项头文件依赖修正已包含在本次上传中，尚未完成的后续实验代码保留在本地。复查的 [环境与源码校验值](./tests/lab2/github-check/environment.json)、[测试结果](./tests/lab2/github-check/results.json) 和 [完整构建日志](./tests/lab2/github-check/full-project.build.log) 一并保存。因此，下面的原始截图记录首次本地测试，`github-check` 记录实际上传的纯 Lab2 源码复查；两者的构建范围有明确区分。
 
-在仓库根目录运行：
+在仓库根目录运行课程用例，历史扩展用例可按名字单独复现。
 
 ```bash
-python3 tests/lab2/run.py
-# 仅复现某组用例时，可按名字筛选：
-python3 tests/lab2/run.py --only extra-huge --output /tmp/lab2-huge-recheck
+python3 tests/lab2/run.py --output /tmp/lab2-required
+python3 tests/lab2/run.py --only official-vm --output /tmp/lab2-vm
 ```
 
 完整运行会产生每例的 `.build.log`、QEMU 原始 `.log`、[results.json](./tests/lab2/results/results.json) 与 [environment.json](./tests/lab2/results/environment.json)。后者记录源文件 SHA256、工具版本、实际构建对象、Git HEAD 和源码前后是否一致；这次使用的是当前未提交工作区，HEAD 不能单独代表测试的全部源码。不同测试入口的全局变量大小不同，`ALLOC_BEGIN` 和用户页总数可能变化，因此用例均以本次 ELF 的实际基准进行断言。
