@@ -92,15 +92,21 @@ extern char ALLOC_END[];
 
 // 页表项和页表(页表项数组)
 typedef uint64 pte_t;
-typedef pte_t *pgtbl_t;
+typedef pte_t *pgtbl_t; // 就是一个指针
 
 // satp寄存器相关
+/*
+satp的结构如下：
+前4位是mode，0代表不启动页表，8代表启动三级页表，9代表启用四级页表，10代表启用五级页表
+接下来16位是ASID，linux用它来区分不同进程的地址空间，以减少刷新TLB的次数，但是xv6强制切换页表的时候使用sfence.vma，所有没有使用ASID，这16位被置零
+接下来44位是根页表的物理地址
+*/
 #define SATP_SV39 (8L << 60)                                           // MODE = SV39
 #define MAKE_SATP(pagetable) (SATP_SV39 | (((uint64)pagetable) >> 12)) // 设置MODE和PPN字段
 
 // 获取虚拟地址中的虚拟页(VPN)信息 占9bit
 #define VA_SHIFT(level) (12 + 9 * (level))
-#define VA_TO_VPN(va, level) ((((uint64)(va)) >> VA_SHIFT(level)) & 0x1FF)
+#define VA_TO_VPN(va, level) ((((uint64)(va)) >> VA_SHIFT(level)) & 0x1FF) // 取出需要的9位
 
 // PA和PTE之间的转换
 #define PA_TO_PTE(pa) ((((uint64)(pa)) >> 12) << 10)
@@ -117,6 +123,8 @@ typedef pte_t *pgtbl_t;
 #define PTE_D (1 << 7) // dirty
 
 // 检查一个PTE是否属于pgtbl
+// 判断一个页表项是不是叶子，xv6中R,W,X全为0代表不是叶子
+// 这里没有判断PTE_V，可以改进
 #define PTE_CHECK(pte) (((pte) & (PTE_R | PTE_W | PTE_X)) == 0)
 
 // 获取低10bit的flag信息
@@ -125,12 +133,12 @@ typedef pte_t *pgtbl_t;
 // 定义一个非常大的VA, 正常来说所有VA不得大于它
 #define VA_MAX (1ul << 38)
 #define USER_BASE ((uint64)PGSIZE)
-#define TRAMPOLINE (VA_MAX - PGSIZE)
-#define TRAPFRAME (TRAMPOLINE - PGSIZE)
-#define USTACK (TRAPFRAME - PGSIZE)
-#define KSTACK(i) (TRAMPOLINE - ((uint64)(i) + 1) * 2 * PGSIZE)
+#define TRAMPOLINE (VA_MAX - PGSIZE) // 跳板页
+#define TRAPFRAME (TRAMPOLINE - PGSIZE) // 陷阱页
+#define USTACK (TRAPFRAME - PGSIZE) // 用户栈
+#define KSTACK(i) (TRAMPOLINE - ((uint64)(i) + 1) * 2 * PGSIZE) // 为可能多个进程分配了多个内核栈
 // PGSIZE 继续保持 4096。
-#define VM_LEVEL_SIZE(level) (1ul << VA_SHIFT(level))
+#define VM_LEVEL_SIZE(level) (1ul << VA_SHIFT(level)) //对应level的一页的大小
 #define HUGE_2M VM_LEVEL_SIZE(1)
 #define HUGE_1G VM_LEVEL_SIZE(2)
 #define PTE_LEAF(pte) (((pte) & (PTE_R | PTE_W | PTE_X)) != 0)

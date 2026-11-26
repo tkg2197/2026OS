@@ -42,12 +42,14 @@ static char *exception_info[16] = {
 
 // 实现位于 trap.S
 // 它是完整的内核态trap处理流程
+// 用于保存寄存器
 extern void kernel_vector();
 
 // 初始化trap中各个核心共享的东西
 void trap_kernel_init()
 {
     // PLIC初始化
+    // 给每个中断设置一个非零优先级
     plic_init();
 
     // 系统时钟创建
@@ -58,12 +60,16 @@ void trap_kernel_init()
 void trap_kernel_inithart()
 {
     // PLIC核心初始化
+    // 为每个核设置context
     plic_inithart();
 
     // 填写内核态中断处理函数
+    // when trap happens, go to kernel_vector
     w_stvec((uint64)kernel_vector);
 
     // stvec和PLIC context就绪之后才能开放外部中断。
+    // 允许当前核响应外部中断
+    // sie.SEIE controls external intr, sstatus.SIE controls overall intr
     w_sie(r_sie() | SIE_SEIE);
     intr_on();
 }
@@ -72,19 +78,19 @@ void trap_kernel_inithart()
 // 内核态trap处理的核心逻辑
 void trap_kernel_handler()
 {
-    uint64 sepc = r_sepc();       // 记录了发生异常时的PC值
+    uint64 sepc = r_sepc();       // 记录了发生异常时的PC值,trap的返回地址
     uint64 sstatus = r_sstatus(); // 与特权模式和中断相关的状态信息
     uint64 scause = r_scause();   // 引发trap的原因
     uint64 stval = r_stval();     // 发生trap时保存的附加信息 (不同trap类型不一样)
 
-    // 确认trap来自S-mode且此时trap处于关闭状态
+    // 确认trap来自S-mode且此时trap处于关闭状态(store previous SIE in SPIE, and set SIE 0)
     assert(sstatus & SSTATUS_SPP, "trap_kernel_handler: not from s-mode");
-    assert(intr_get() == 0, "trap_kernel_handler: interreput enabled");
+    assert(intr_get() == 0, "trap_kernel_handler: interreput enabled"); // 硬件应该关中断
 
     uint64 trap_id = scause & ~(1ull << 63);
 
     /* 高位bit标识了是中断还是异常 */
-    if (scause & 0x8000000000000000ul)
+    if (scause & 0x8000000000000000ul) // 中断
     {
         // 1-中断处理
         switch (trap_id) // 中断产生原因分类
@@ -123,9 +129,11 @@ void trap_kernel_handler()
 void external_interrupt_handler()
 {
     int irq = plic_claim();
+    // 没有领到中断(被另一个cpu领走了)
     if (irq == 0)
         return;
     if (irq == UART_IRQ)
+        //处理缓冲区中的字符
         uart_intr();
     else
         printf("unexpected external irq: %d\n", irq);
@@ -139,7 +147,7 @@ void timer_interrupt_handler()
     // 设置下一次时钟事件
     // 如果不设置, stimecmp会一直是一个过期的值, CPU处理完这次中断后会立刻再次响应同一个中断
 
-    sbi_ret_t ret = sbi_set_timer(r_time() + INTERVAL);
+    sbi_ret_t ret = sbi_set_timer(r_time() + INTERVAL); // 读的是硬件计时器，和timer没有关系
     assert(ret.error == SBI_SUCCESS, "timer interrupt: SBI TIME failed");
 
     // 只由CPU-0更新共享时钟。

@@ -4,6 +4,7 @@
 #define initcode target_user_initcode
 #define initcode_len target_user_initcode_len
 
+// 在kernel.ld中已经完成申请
 extern char trampoline[];
 extern void swtch(context_t *old, context_t *new);
 static proc_t proczero;
@@ -39,12 +40,14 @@ void proc_make_first(void)
     p->tf = pmem_try_alloc(true);
     if (p->tf == NULL)
         goto fail;
+    // init page table
     p->pgtbl = proc_pgtbl_init((uint64)p->tf);
     if (p->pgtbl == NULL)
         goto fail;
     stack = pmem_try_alloc(false);
     if (stack == NULL)
         goto fail;
+    // init user stack
     if (!vm_try_mappage(p->pgtbl, USTACK, (uint64)stack, PTE_R | PTE_W | PTE_U))
         goto fail;
     stack_mapped = true;
@@ -59,7 +62,7 @@ void proc_make_first(void)
     p->pid = 0;
     p->heap_top = USER_BASE + PGSIZE;
     p->ustack_npage = 1;
-    p->tf->user_to_kern_epc = USER_BASE;
+    p->tf->user_to_kern_epc = USER_BASE; // 切换上下文后会从这里开始执行
     p->tf->sp = USTACK + PGSIZE;
     p->kstack = KSTACK(0);
     p->ctx.ra = (uint64)trap_user_return;

@@ -1,5 +1,6 @@
 # 这部分代码在用户内核切换时发挥作用
 # 不论是内核页表还是用户页表, 这部分代码被映射在同一个虚拟地址空间
+// stvec指向user_vector
 
 # kernel.ld 里面添加这个section
 .section trampsec
@@ -16,7 +17,7 @@ user_vector:
 #------------------sd 过程 (begin)-----------------------
 
         # sscratch寄存器存放了p->trapframe
-        csrrw a0, sscratch, a0
+        csrrw a0, sscratch, a0 // 交换a0和sscratch的值，现在a0中是trapframe的地址，因为sd指令的对象必须是通用寄存器
 
         # 保存通用寄存器到trapframe
         sd ra, 40(a0)
@@ -57,16 +58,17 @@ user_vector:
 #------------------sd 过程 (end)-------------------------
 
         # 恢复之前保存的内核执行环境
+        # 这些内容在上一次trap_user_return中保存
         # 1. 内核栈指针
         # 2. hartid信息
         # 3. 内核页表
         # 之后跳转到 trap_user_handler
 
-        # sp = tf->user_to_kern_sp
+        # sp = tf->user_to_kern_sp，切换到当前进程的内核栈顶
         ld sp, 8(a0)
         # tp = tf->user_to_kern_hartid
         ld tp, 32(a0)
-        # t0 = tf->user_to_kern_trapvector
+        # t0 = tf->user_to_kern_trapvector，就是trap_user_handler
         ld t0, 16(a0)
 
         # t1 = tf->user_to_kern_satp

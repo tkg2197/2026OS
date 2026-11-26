@@ -3,7 +3,7 @@
 #define HEAP_CLASS_COUNT 8
 #define HEAP_DEFAULT_ALIGN 16
 
-static const uint32 heap_sizes[HEAP_CLASS_COUNT] = {
+static const uint32 heap_sizes[HEAP_CLASS_COUNT] = { // 一页中最多有128块
     32, 64, 128, 256, 512, 1024, 2048, 4096
 };
 
@@ -21,6 +21,7 @@ static heap_page_t heap_pages[KERN_PAGES];
 static heap_page_t *partial[HEAP_CLASS_COUNT]; // 每个档位大小的空闲链表的第一块
 static spinlock_t heap_lock;
 
+// 返回满足需要的最小分割的堆
 static int heap_class_index(uint64 size, uint64 align) {
     if (size == 0 || size > PGSIZE || align == 0 || align > PGSIZE || (align & (align - 1)) != 0)
         return -1;
@@ -39,6 +40,7 @@ static int heap_page_index(uint64 pa) {
     return (int)((pa - begin) / PGSIZE);
 }
 
+// 把新的堆页插入空闲链表的第一项
 static void partial_add(heap_page_t *p) {
     uint32 c = p->class_index;
     p->prev = NULL;
@@ -48,6 +50,7 @@ static void partial_add(heap_page_t *p) {
     partial[c] = p;
 }
 
+// 从空闲链表中移除一项
 static void partial_remove(heap_page_t *p) {
     uint32 c = p->class_index;
     if (p->prev != NULL)
@@ -60,6 +63,7 @@ static void partial_remove(heap_page_t *p) {
     p->next = NULL;
 }
 
+// 新申请一页，按照c档切成堆，并加入空闲链表
 static heap_page_t *heap_grow_locked(uint32 c) {
     void *page = pmem_try_alloc(true);
     if (page == NULL)
@@ -86,18 +90,19 @@ static heap_page_t *heap_grow_locked(uint32 c) {
     return p;
 }
 
+// 从这一页中取出一小块
 static void *heap_take_locked(heap_page_t *p) {
     uint32 size = heap_sizes[p->class_index];
     uint32 count = PGSIZE / size;
     for (uint32 i = 0; i < count; i++) {
         uint32 word = i / 64;
         uint64 bit = (uint64)1 << (i % 64);
-        if ((p->used[word] & bit) == 0) {
-            p->used[word] |= bit;
+        if ((p->used[word] & bit) == 0) { // 如果这一小块没有被使用
+            p->used[word] |= bit; // 将它启用
             p->free_count--;
-            if (p->free_count == 0)
+            if (p->free_count == 0) // 用完了就移出空闲链表
                 partial_remove(p);
-            return (void *)(p->pa + (uint64)i * size);
+            return (void *)(p->pa + (uint64)i * size); // 返回这一小块的地址
         }
     }
     spinlock_release(&heap_lock);
@@ -112,6 +117,7 @@ void kheap_init(void) {
     memset(partial, 0, sizeof(partial));
 }
 
+// 申请一小块
 void *kmalloc(uint64 size) {
     int c = heap_class_index(size, HEAP_DEFAULT_ALIGN);
     if (c < 0)
@@ -149,6 +155,7 @@ void *kmalloc_aligned(uint64 size, uint64 align)
     return result;
 }
 
+// 释放一小块
 // 完全空闲的页立即归还buddy
 void kfree(void *ptr) {
     if (ptr == NULL)

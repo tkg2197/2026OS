@@ -4,16 +4,17 @@
 void plic_init()
 {
     // 设置UART中断优先级
-    *(volatile uint32 *)(PLIC_PRIORITY(UART_IRQ)) = 1;
+    // UART为PLIC_BASE+40
+    *(volatile uint32 *)(PLIC_PRIORITY(UART_IRQ)) = 1; // 暂时只处理UART中断
 }
 
 // PLIC核心初始化
 void plic_inithart()
 {
     int hartid = mycpuid();
-    // 使能中断开关
+    // 使能UART中断开关
     *(volatile uint32 *)PLIC_SENABLE(hartid) = (1 << UART_IRQ);
-    // 设置响应阈值
+    // 设置响应阈值为0
     *(volatile uint32 *)PLIC_SPRIORITY(hartid) = 0;
 }
 

@@ -71,10 +71,14 @@ void uart_intr(void)
 	while (1)
 	{
 		int c = uart_getc_sync();
+        // 没有数据
 		if (c == -1)
 		break;
+        // 两种不同的退格
         if (c == '\b' || c == 0x7f)
+            // 移动光标 用空格覆盖 移动光标
             printf("\b \b");
+        // 回车或换行
         else if (c == '\r' || c == '\n')
             printf("\r\n");
         else

@@ -22,8 +22,8 @@ swtch:
         sd s11, 104(a0)
 
         // memory(new) -> registers
-        ld ra, 0(a1)
-        ld sp, 8(a1)
+        ld ra, 0(a1) // 切换执行位置
+        ld sp, 8(a1) // 切换栈
         ld s0, 16(a1)
         ld s1, 24(a1)
         ld s2, 32(a1)

@@ -7,7 +7,7 @@
 kernel_vector:
 
         # 准备空间给32个通用寄存器
-        addi sp, sp, -256
+        addi sp, sp, -256 // 存在内核栈里面
 
         # 寄存器状态保存
         sd ra, 0(sp)

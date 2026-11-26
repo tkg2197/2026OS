@@ -1,9 +1,9 @@
 #include "mod.h"
 
 #define BUDDY_MAX_ORDER 15
-#define BUDDY_PAGE_CAP (PHYS_MEM_SIZE / PGSIZE)
+#define BUDDY_PAGE_CAP (PHYS_MEM_SIZE / PGSIZE) // 一共可以分配的页数
 
-// -1表示不是独立块首，-2-order表示是第order阶已分配的块首
+// -1表示不是块首，可能已经分配也可能没有。-2-order表示是第order阶已分配的块首
 #define STATE_UNUSED (-1)
 #define STATE_ALLOC(order) (-(int)(order) - 2)
 
@@ -13,13 +13,13 @@ typedef struct buddy_region {
     uint32 npages, allocable;
     spinlock_t lk;
     // 为每个阶数的块首建立链表
-    page_node_t *free[BUDDY_MAX_ORDER + 1];
+    page_node_t *free[BUDDY_MAX_ORDER + 1]; // 每一项是一个链表的头指针
     // 多个buddy区域共用一个state数组,但在初始化的时候指向state数组的不同位置
     int16 *state;
 } buddy_region_t;
 
 static buddy_region_t kern_region, user_region;
-static int16 page_state[BUDDY_PAGE_CAP];
+static int16 page_state[BUDDY_PAGE_CAP]; // 被写入STATE_UNUSED和STATE_ALLOC
 
 static buddy_region_t *region_of(bool in_kernel) {
     return in_kernel ? &kern_region : &user_region;
@@ -34,13 +34,15 @@ static uint64 page_address(buddy_region_t *r, uint32 index) {
 }
 
 //以下链表辅助函数调用要求持有区域锁 
+// 把空闲块加到空闲链表的开头，每个块的开头空闲页用来存放下个空闲块的地址
 static void list_push(buddy_region_t *r, uint32 index, unsigned order) {
-    page_node_t *node = (page_node_t *)page_address(r, index);
-    node->next = r->free[order];
+    page_node_t *node = (page_node_t *)page_address(r, index); // node指针指向物理页，这个地址后面的数据将会按照page_node_t的结构来读取
+    node->next = r->free[order]; // 这个空闲物理页开头用来存放下个空闲物理页的地址
     r->free[order] = node;
     r->state[index] = (int16)order;
 }
 
+// 从空闲链表的头部取出一个空闲块
 static uint32 list_pop(buddy_region_t *r, unsigned order) {
     page_node_t *node = r->free[order];
     uint32 index = page_index(r, (uint64)node);
@@ -49,6 +51,7 @@ static uint32 list_pop(buddy_region_t *r, unsigned order) {
     return index;
 }
 
+// 从空闲链表中移除以指定页号开头的空闲块
 static void list_remove(buddy_region_t *r, uint32 index, unsigned order){
     page_node_t *target = (page_node_t *)page_address(r, index);
     page_node_t **link = &r->free[order];
@@ -60,7 +63,7 @@ static void list_remove(buddy_region_t *r, uint32 index, unsigned order){
         panic("buddy: state/list mismatch");
         return;
     }
-    *link = target->next;
+    *link = target->next;// *Link中储存的要移除的物理页的地址，target->next储存的下一个空闲块开头物理页的地址，用下一个地址覆盖现在的地址，这样上一个空闲块就会指向它，同时它还是指向它的下一个空闲块，就做到了删除的效果
     r->state[index] = STATE_UNUSED;
 }
 
@@ -80,6 +83,7 @@ static void region_init(buddy_region_t *r, uint64 begin, uint64 end, int16 *stat
         r->state[i] = STATE_UNUSED;
     }
     uint32 index = 0;
+    //从能放下的最大的order开始分配，每一步都分配能分配的最大的
     while (index < r->npages) {
         unsigned order = BUDDY_MAX_ORDER;
         while ((index & ((1u << order) - 1)) != 0 || (1u << order) > r->npages - index)
@@ -101,6 +105,7 @@ void pmem_init(void) {
     region_init(&user_region, split, end, page_state + KERN_PAGES, "user_buddy");
 }
 
+// 找到一个比order大的最小的块，然后不断对半切分这个块，把右边的块重新加入空闲链表，直到剩余块的阶数正好是order
 void *pmem_try_alloc_order(unsigned order, bool in_kernel) {
     assert(order <= BUDDY_MAX_ORDER, "buddy alloc: bad order");
     buddy_region_t *r = region_of(in_kernel);
@@ -140,6 +145,7 @@ void *pmem_try_alloc(bool in_kernel)
     return pmem_try_alloc_order(0, in_kernel);
 }
 
+// free的时候要顺便合并可以合并的伙伴
 void pmem_free_order(uint64 pa, unsigned order, bool in_kernel) {
     assert(order <= BUDDY_MAX_ORDER, "buddy free: bad order");
     buddy_region_t *r = region_of(in_kernel);
