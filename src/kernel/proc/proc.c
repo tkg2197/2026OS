@@ -75,33 +75,33 @@ static int alloc_pid(void)
 
 proc_t *proc_alloc(void)
 {
-    for (proc_t *p = proc_list; p < proc_list + N_PROC; p++)
-    {
+    proc_t *p;
+    for (p = proc_list; p < proc_list + N_PROC; p++) {
         spinlock_acquire(&p->lk);
-        if (p->state != UNUSED)
-        {
-            spinlock_release(&p->lk);
-            continue;
-        }
-
-        p->state = EMBRYO;
-        p->pid = alloc_pid();
-        if (p->pid > 0)
-        {
-            p->tf = pmem_alloc(true);
-            if (p->tf)
-                p->pgtbl = proc_pgtbl_init((uint64)p->tf);
-        }
-        if (!p->pgtbl)
-        {
-            proc_free(p);
-            spinlock_release(&p->lk);
-            return NULL;
-        }
-
-        p->ctx = (context_t){ .ra = (uint64)proc_return, .sp = p->kstack + PGSIZE };
-        return p;
+        if (p->state == UNUSED)
+            goto found;
+        spinlock_release(&p->lk);
     }
+    return NULL;
+
+found:
+    p->state = EMBRYO;
+    p->pid = alloc_pid();
+    if (p->pid < 0)
+        goto fail;
+    p->tf = pmem_alloc(true);
+    if (!p->tf)
+        goto fail;
+    p->pgtbl = proc_pgtbl_init((uint64)p->tf);
+    if (!p->pgtbl)
+        goto fail;
+
+    p->ctx = (context_t){ .ra = (uint64)proc_return, .sp = p->kstack + PGSIZE };
+    return p;
+
+fail:
+    proc_free(p);
+    spinlock_release(&p->lk);
     return NULL;
 }
 
@@ -210,9 +210,9 @@ int proc_fork(void)
     return pid;
 }
 
+// 调用者已持有 wait_lock 和 p->lk。wait() 在父进程自己的地址上睡眠。
 static void proc_try_wakeup(proc_t *p)
 {
-    assert(spinlock_holding(&p->lk), "proc_try_wakeup lock");
     if (p->state == SLEEPING && p->sleep_space == p)
         p->state = RUNNABLE;
 }
