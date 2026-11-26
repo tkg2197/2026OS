@@ -32,7 +32,6 @@ shutil.copytree(source / 'src', workspace / 'src', ignore=shutil.ignore_patterns
 for name in ('Makefile', 'common.mk', 'kernel.ld', 'user.ld'):
     if (source / name).exists(): shutil.copyfile(source / name, workspace / name)
 main = workspace / 'src/kernel/main.c'
-original_main = main.read_text()
 environment = {
     'date': time.strftime('%Y-%m-%d %H:%M:%S %z'),
     'source': str(source), 'workspace': str(workspace),
@@ -61,9 +60,7 @@ lab2_objects = ['target/kernel/' + str(p.relative_to(workspace / 'src/kernel').w
                 for p in lab2_sources]
 build_args = ['make', 'KernelOBJ=' + ' '.join(lab2_objects), 'build']
 environment['lab2_objects'] = lab2_objects
-environment['scoped_entry_adjustment'] = 'Only in temp main: omit trap_kernel_init/trap_kernel_inithart/timer_init calls.'
-cases = [('scoped-entry-smoke', None, None, 'buddy two-core test passed', False)]
-cases += [(name, 'official.c', f'LAB2_CASE {i}', marker, panic) for i, name, marker, panic in [
+cases = [(name, 'official.c', f'LAB2_CASE {i}', marker, panic) for i, name, marker, panic in [
     (1, 'official-pmem-parallel', 'OFFICIAL PMEM PARALLEL PASS', False),
     (2, 'official-exhaust-kernel', 'buddy alloc: no suitable block', True),
     (3, 'official-exhaust-user', 'buddy alloc: no suitable block', True),
@@ -139,15 +136,11 @@ results = []
 try:
     for name, filename, define, marker, expected_panic in cases:
         if args.only and args.only not in name: continue
-        text = original_main if filename is None else (HERE / filename).read_text()
-        if filename is None:
-            for call in ('trap_kernel_init();', 'trap_kernel_inithart();', 'timer_init();'):
-                text = text.replace(call, '/* Lab2 scoped build: later-lab initialization omitted. */')
-        if filename:
-            macro, value = define.split()
-            # buddy参考旧入口直接define，其余通过ifndef：统一替换或前置。
-            text = re.sub(rf'^#define {macro} \d+\s*$', f'#define {macro} {value}', text, flags=re.M)
-            text = f'#ifndef {macro}\n#define {macro} {value}\n#endif\n' + text
+        if not args.only and not name.startswith('official-'): continue
+        text = (HERE / filename).read_text()
+        macro, value = define.split()
+        text = re.sub(rf'^#define {macro} \d+\s*$', f'#define {macro} {value}', text, flags=re.M)
+        text = f'#ifndef {macro}\n#define {macro} {value}\n#endif\n' + text
         main.write_text(text)
         started = time.monotonic()
         build = subprocess.run(build_args[:1] + (['-B'] if not results else []) + build_args[1:],

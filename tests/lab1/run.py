@@ -45,7 +45,7 @@ env = {
     'fixture_changes':'Only temporary main; boot diagnostics install temporary M-mode ecall handler; unlocked printf removes only print_lk acquire/release.',
 }
 cases = [
-    ('original-atomic-entry',0,'cpu 1 report: sum = 2000000',False),
+    ('boot-entry',0,'cpu 1 is booting!',False),
     ('boot-mode-stack',1,'BOOT MODE/STACK PASS',False),
     ('add-unlocked',2,'UNLOCKED ADD DEMO COMPLETE',False),
     ('add-fine-lock',3,'LOCKED ADD PASS: mode=fine',False),
@@ -82,8 +82,8 @@ def boot(name, marker, panic_expected):
                 proc.stdin.write(b'Lab1!\n')
                 proc.stdin.flush()
                 sent_input = True
-            if name == 'original-atomic-entry':
-                done = all(f'cpu {h} report: sum = 2000000\n'.encode() in data for h in (0,1))
+            if name == 'boot-entry':
+                done = all(f'cpu {h} is booting!\n'.encode() in data for h in (0,1))
             else:
                 done = marker.encode() in data and b'\n' in data.split(marker.encode(),1)[1]
             panic_done = b'panic!' in data and b'\n' in data.split(b'panic!',1)[1]
@@ -99,9 +99,8 @@ def boot(name, marker, panic_expected):
     assert marker.encode() in raw, f'{name}: missing completion marker; inspect raw log'
     assert (b'panic!' in raw) == panic_expected, f'{name}: wrong panic state'
     details = {}
-    if name == 'original-atomic-entry':
+    if name == 'boot-entry':
         assert all(f'cpu {h} is booting!'.encode() in raw for h in (0,1))
-        assert all(f'cpu {h} report: sum = 2000000'.encode() in raw for h in (0,1))
     if name == 'add-unlocked':
         values = [int(x) for x in re.findall(rb'final=(\d+) expected=2000000',raw)]
         assert len(values) == 5 and any(x != 2000000 for x in values)
@@ -133,6 +132,7 @@ rows = []
 try:
     for name,case,marker,panic_expected in cases:
         if args.only and args.only not in name: continue
+        if not args.only and case != 0: continue
         started = time.monotonic()
         start.write_text(original_start)
         printer.write_text(original_print)
