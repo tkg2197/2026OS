@@ -1,0 +1,38 @@
+lab: 2
+goal: 将启动路径迁移到OpenSBI的S-mode交接，并增加物理内存管理和内核虚拟地址空间。
+requires: lab1
+changes:
+- kernel/arch
+- kernel/memory
+- kernel/boot
+- toolchain
+acceptance:
+- scenario: opensbi-s-mode-handoff
+  input:
+  - 使用CPUNUM=2执行make run，并保留-bios default。
+  - 观察hart0启动以及hart0通过SBI HSM启动hart1的过程。
+  expected:
+  - OpenSBI在0x80200000以S-mode进入_entry，a0携带有效hart ID。
+  - hart0完成共享初始化后启动hart1，两个hart使用独立早期栈且各输出一次启动提示。
+  - 内核不直接访问M-mode CSR或OpenSBI占用的CLINT与前2MiB内存。
+- scenario: physical-page-lifecycle
+  input:
+  - 在pmem_init完成后调用test_case_2。
+  - 申请10个用户物理页并写入非零数据。
+  - 检查可分配页计数减少10。
+  - 释放全部页面并检查计数恢复。
+  - 重新申请页面并逐字检查已清零。
+  expected:
+  - 所有地址位于用户物理内存区域且页对齐。
+  - 释放前后allocable计数与预期一致。
+  - 重新分配页面内容全为0，并输出test_case_2 passed。
+- scenario: kernel-page-table-map-unmap
+  input:
+  - 完成print_init、pmem_init和kvm初始化后执行。
+  - 在临时页表中分别建立可读写映射和只读映射。
+  - 通过vm_getpte核对PTE有效位、物理地址和权限。
+  - 调用vm_unmappages并再次读取PTE。
+  expected:
+  - 映射后的PTE有效且物理地址、权限与输入一致。
+  - 解除映射后PTE保留可查询但PTE_V清零。
+  - 输出test_mapping_and_unmapping passed且无assert失败。

@@ -1,1 +1,4 @@
 target
+# 由target/user/initcode.bin生成的数组, proc.c直接#include它
+src/user/initcode.h
+.gdbinit

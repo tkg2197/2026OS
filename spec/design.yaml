@@ -1,0 +1,20 @@
+system: RV64教学内核Lab6：通过学生契约驱动代码生成，建立可抢占的多进程生命周期。
+machine:
+  isa: RV64GC
+  board: QEMU virt
+  memory: 128MiB，从0x80000000开始
+  harts: 支持1或2，默认2；每hart进入scheduler
+mechanisms:
+  - 延续Lab5的安全用户复制、动态堆栈、mmap及地址空间复制销毁。
+  - 进程状态机、独立内核栈、上下文切换和内核态/用户态时钟抢占。
+  - fork、exit、wait、sleep/wakeup、睡眠锁及系统调用ABI。
+rules:
+  - modules是完整现行契约；patches只描述阶段学习增量及可观察验收，不复制函数契约。
+  - 普通用户错误返回失败或结束违规进程，资源不足不发布半成品；内核不变量破坏和无法启动才panic。
+  - 只有hart0更新共享tick；条件等待遵守锁交接协议，硬中断不得睡眠。
+  - 首进程正常运行时收养并wait孤儿；首进程退出或用户故障也经exit进入ZOMBIE并停止运行，不使系统panic。
+  - 首进程ZOMBIE保留到重启，不被wait回收，仍是孤儿收养目标；其他进程继续调度。
+non_goals:
+  - 文件系统、exec、文件描述符和信号。
+  - 首进程死亡后的完整孤儿回收，以及新增专用reaper进程。
+  - 公平调度策略、优先级、多线程和写时复制。

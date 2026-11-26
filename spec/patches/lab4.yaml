@@ -1,0 +1,35 @@
+lab: 4
+goal: 在Lab3中断基础上运行首个用户进程并形成ecall往返。
+requires: lab3的启动、控制台、自旋锁、物理内存、内核页表与设备中断基础。
+changes:
+  kernel/process:
+  - 首进程页表与上下文
+  - 当前CPU进程指针
+  - swtch与proc_return
+  kernel/usertrap:
+  - user_vector、trap_user_handler、trap_user_return、user_return
+  kernel/memory:
+  - TRAMPOLINE与KSTACK(0)
+  - 可恢复页分配和映射失败
+  kernel/boot:
+  - 初始化进程并由hart0启动
+  user/initcode:
+  - 连续两次ecall与用户循环
+  toolchain:
+  - 用户入口与内嵌代码
+  - trampoline段及新增源文件构建
+acceptance:
+- scenario: 首进程ecall往返
+  input: 以CPUNUM=2和OpenSBI默认固件启动默认用户入口
+  expected:
+  - 出现两次proczero hello world
+  - 用户调用都返回0且继续循环，ecall不重复执行
+- scenario: 用户执行期间中断
+  input: 用户循环期间等待时钟并向UART输入普通字符、退格和换行
+  expected:
+  - 时钟继续推进，UART按console契约回显
+  - 中断后用户PC、寄存器和栈保持可继续执行
+- scenario: 未知调用与用户异常
+  input: 临时用户场景发起未知号及访问零页
+  expected:
+  - 未知号返回-1，用户零页错误停止故障执行而不panic

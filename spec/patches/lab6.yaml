@@ -1,0 +1,20 @@
+lab: lab6
+goal: 从单进程扩展为可抢占的多进程；学生用契约表达状态、锁交接、资源生命周期和失败行为，再据生成结果修正规格。
+requires:
+  - Lab5内存、用户复制、系统调用和用户trap契约。
+  - 运行环境支持构建并启动1/2 hart的QEMU virt。
+changes:
+  - process建立进程表、上下文、fork/exit/wait和sleep/wakeup；首进程进入RUNNABLE，每hart运行scheduler。
+  - lock使用cpu_t.noff/intena管理每hart中断嵌套，与proc_sched的锁交接一致；sleeplock独立负责可睡眠互斥。
+  - memory为每个进程槽准备独立内核栈及guard page。
+  - trap承担tick等待和时钟唤醒，kernel/user中断路径支持安全抢占；syscall和user采用本阶段编号。
+  - boot发布共享初始化完成状态；toolchain显式保证入口与布局，不依赖编译优化偶然排列。
+acceptance:
+  - 首进程getpid返回1；在1和2 hart下都能进入用户态并输出完整字符串，其他启用hart可调度。
+  - 连续两次fork的level-1/2/3输出分别出现1/2/4次；同一进程不在两个hart同时运行。
+  - fork复制heap/stack/mmap数据且父子修改互不影响；子exit(1234)后父wait得到子pid与1234，槽和资源可复用。
+  - wait没有子进程返回-1；wait(0)正常回收；非法退出码地址返回-1后仍能使用合法地址回收同一子进程。
+  - 子进程sleep(30)达到至少30个共享tick后才继续；父wait最终返回，其他可运行进程在等待期间继续运行，无丢失唤醒。
+  - 睡眠锁竞争者阻塞等待，持有者释放后可继续竞争，非持有者不被视为拥有锁。
+  - 非法系统调用返回-1；非法用户访问使违规进程以失败状态退出，其他进程继续运行；首进程故障按design的保留ZOMBIE规则处理。
+  - 分配失败或无空闲槽时fork返回-1，不发布不完整子进程；正常用户错误不造成全局panic。

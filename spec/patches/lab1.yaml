@@ -1,0 +1,28 @@
+lab: 1
+goal: 第一个实验建立从QEMU启动到监督者模式打印的最小闭环。
+requires: initial
+changes:
+- kernel/boot
+- kernel/console
+- kernel/lock
+- toolchain
+acceptance:
+- scenario: boot-output-and-order
+  input:
+  - 使用至少2个hart执行make run。
+  - 启动内核，让所有hart进入test1。
+  - 记录每个hart的Hello world输出并观察字符是否交错。
+  expected:
+  - boot hart先完成打印初始化，其他hart在started发布后继续。
+  - 每个hart产生一条完整输出，单条printf内容不与其他hart交错。
+  - 内核不发生panic或非法指令异常。
+- scenario: parallel-sum-locking
+  input:
+  - 将main临时切换为调用test2。
+  - 分别准备不保护共享sum和所有hart都使用sum_lk保护两种配置。
+  - 每个hart对sum执行100000次递增。
+  - 比较无锁与加锁两次运行的最终输出。
+  expected:
+  - 无锁版本允许观察到丢失更新。
+  - 加锁版本最终sum等于hart数量乘以100000；2个hart时应为200000。
+  - printf输出保持完整。

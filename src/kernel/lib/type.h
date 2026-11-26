@@ -1,5 +1,6 @@
 #pragma once
 #include "../arch/type.h"
+#include "../proc/type.h"
 #include <stdarg.h>
 
 // the UART control registers.
@@ -10,8 +11,8 @@
 #define RHR 0 // receive holding register (for input bytes)
 #define THR 0 // transmit holding register (for output bytes)
 #define IER 1 // interrupt enable register
-#define IER_TX_ENABLE (1 << 0)
-#define IER_RX_ENABLE (1 << 1)
+#define IER_TX_ENABLE (1 << 1)
+#define IER_RX_ENABLE (1 << 0)
 #define FCR 2 // FIFO control register
 #define FCR_FIFO_ENABLE (1 << 0)
 #define FCR_FIFO_CLEAR (3 << 1) // clear the content of the two FIFOs
@@ -24,16 +25,32 @@
 #define LSR_TX_IDLE (1 << 5)    // THR can accept another character to send
 
 // 读写寄存器的宏定义
-#define Reg(reg) ((volatile unsigned char *)(UART_BASE + reg))
+#ifdef VISIONFIVE2
+#define Reg(reg) ((volatile uint32 *)(UART_BASE + 4u * (reg)))
+#else
+#define Reg(reg) ((volatile unsigned char *)(UART_BASE + (reg)))
+#endif
 #define ReadReg(reg) (*(Reg(reg)))
 #define WriteReg(reg, v) (*(Reg(reg)) = (v))
 
 // UART 相关
 #define UART_BASE 0x10000000ul
+#ifdef VISIONFIVE2
+#define UART_IRQ 32
+#else
 #define UART_IRQ 10
+#endif
+
+// 帮助
+#define MAX(a, b) ((a) > (b) ? (a) : (b))                               // 取大
+#define MIN(a, b) ((a) < (b) ? (a) : (b))                               // 取小
+#define ALIGN_UP(addr, refer) (((addr) + (refer) - 1) & ~((refer) - 1)) // 向上对齐
+#define ALIGN_DOWN(addr, refer) ((addr) & ~((refer) - 1))               // 向下对齐
 
 typedef struct cpu
 {
-    int noff;   // 关中断的深度
-    int origin; // 第一次关中断前的状态
+    int noff;      // 关中断的深度
+    int intena;    // 第一次关中断前的状态
+    proc_t *proc;  // cpu上运行的进程
+    context_t ctx; // 内核自身上下文
 } cpu_t;

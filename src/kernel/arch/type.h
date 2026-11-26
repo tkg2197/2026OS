@@ -1,5 +1,6 @@
 #pragma once
 
+#ifndef __ASSEMBLER__
 /* 基本类型定义 */
 
 typedef char int8;
@@ -12,6 +13,12 @@ typedef unsigned int uint32;
 typedef unsigned long long uint64;
 typedef unsigned long long reg;
 
+typedef struct sbi_ret
+{
+    int64 error;
+    int64 value;
+} sbi_ret_t;
+
 typedef enum
 {
     false = 0,
@@ -22,20 +29,38 @@ typedef enum
 #define NULL ((void *)0)
 #endif
 
-
+extern uint64 boot_hartid;
+#endif
 /* OS 全局变量 */
 
-#define NCPU 2 // 最大CPU数量
+#ifdef VISIONFIVE2
+#define NCPU 5
+#define FIRST_HART 1
+#else
+#define NCPU 2
+#define FIRST_HART 0
+#endif
+
+/* SBI Hart State Management extension */
+#define SBI_SUCCESS 0
+#define SBI_EXT_HSM 0x48534D
+#define SBI_HSM_HART_START 0
+#define SBI_HSM_HART_STOP 1
+
+/* SBI Timer extension */
+#define SBI_EXT_TIME 0x54494D45
+#define SBI_TIME_SET_TIMER 0
+
+/* SBI RFENCE extension */
+#define SBI_EXT_RFENCE 0x52464E43
+#define SBI_RFENCE_SFENCE_VMA 1
+
+/* SBI System Reset extension */
+#define SBI_EXT_SRST 0x53525354
+#define SBI_SRST_RESET 0
 
 
 /* RISC-V 架构常量与宏定义 */
-
-/* Machine Status Register (mstatus) */
-#define MSTATUS_MPP_MASK (3L << 11)
-#define MSTATUS_MPP_M (3L << 11)
-#define MSTATUS_MPP_S (1L << 11)
-#define MSTATUS_MPP_U (0L << 11)
-#define MSTATUS_MIE (1L << 3)
 
 /* Supervisor Status Register (sstatus) */
 #define SSTATUS_SPP (1L << 8)
@@ -45,13 +70,6 @@ typedef enum
 #define SSTATUS_UIE (1L << 0)
 
 /* Supervisor Interrupt Enable (sie) */
-#define SIE_SEIE (1L << 9) /* 外部中断 */
-#define SIE_STIE (1L << 5) /* 定时器中断 */
-#define SIE_SSIE (1L << 1) /* 软件中断 */
-
-#define PMP_R   (1L << 0)
-#define PMP_W   (1L << 1)
-#define PMP_X   (1L << 2)
-#define PMP_A_TOR   (1L << 3)
-#define PMP_RWX_TOR (PMP_R | PMP_W | PMP_X | PMP_A_TOR)
-#define PMPADDR_ALL 0x3fffffffffffffULL
+#define SIE_SEIE (1L << 9) /* S-mode 外设中断 */
+#define SIE_STIE (1L << 5) /* S-mode 时钟中断 */
+#define SIE_SSIE (1L << 1) /* S-mode 软件中断 */
