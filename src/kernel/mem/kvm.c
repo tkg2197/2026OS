@@ -18,7 +18,6 @@ static uint64 vm_round_len(uint64 va, uint64 len) {
 // 是否是一个合法的叶子页
 static void vm_check_leaf(pte_t pte, int level)
 {
-    assert(PTE_LEAF(pte), "vm: not a leaf");
     assert(!(pte & PTE_W) || (pte & PTE_R), "vm: W requires R");
     assert((PTE_TO_PA(pte) & (VM_LEVEL_SIZE(level) - 1)) == 0,
            "vm: misaligned leaf pa");
@@ -26,9 +25,7 @@ static void vm_check_leaf(pte_t pte, int level)
 
 // 把原来的大页拆成512个小的叶子页，并申请一个新的页填入原来的pte来映射这些新的页
 static void vm_split(pte_t *pte, int level) {
-    assert(level > 0 && level <= 2, "vm_split: bad level");
     pte_t old = *pte;
-    assert(old & PTE_V, "vm_split: invalid pte");
     vm_check_leaf(old, level);
     pgtbl_t child = (pgtbl_t)pmem_alloc(true);
     uint64 pa = PTE_TO_PA(old);
@@ -44,22 +41,18 @@ static void vm_split(pte_t *pte, int level) {
 static pte_t *vm_walk_level(pgtbl_t pgtbl, uint64 va, int target, bool alloc) {
     assert(pgtbl != NULL, "vm_walk: null page table");
     assert(va < VA_MAX, "vm_walk: va out of range");
-    assert(target >= 0 && target <= 2, "vm_walk: bad level");
     for (int level = 2; level > target; level--) {
         pte_t *pte = &pgtbl[VA_TO_VPN(va, level)];
-        if (*pte & PTE_V) {
-            if (PTE_LEAF(*pte)) {
-                if (!alloc) // 不允许分配新的页
-                    return NULL;
-                vm_split(pte, level);
-            }
-        }
-        else { // 还没建立映射
+        if (!(*pte & PTE_V)) { // 还没建立映射
             if (!alloc)
                 return NULL;
             pgtbl_t child = (pgtbl_t)pmem_alloc(true);
             __sync_synchronize();
-            *pte = PA_TO_PTE(child) | PTE_V; // 在这个pte中填入新申请的页（非叶子页）
+            *pte = PA_TO_PTE(child) | PTE_V; // 新页存放下一级页表
+        } else if (PTE_LEAF(*pte)) {
+            if (!alloc)
+                return NULL;
+            vm_split(pte, level);
         }
         pgtbl = (pgtbl_t)PTE_TO_PA(*pte);
     }
@@ -116,9 +109,8 @@ static void vm_map_range(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int pe
                 pte = vm_walk_level(pgtbl, va, level, true);
                 if (!(*pte & PTE_V) || PTE_LEAF(*pte))
                     break;
-                assert(level > 0, "vm_map: bottom non-leaf");
             }
-            assert(level > 0, "vm_map: cannot select page size");
+            assert(level > 0, "vm_map: bottom non-leaf");
             level--;
         }
         *pte = PA_TO_PTE(pa) | flags;

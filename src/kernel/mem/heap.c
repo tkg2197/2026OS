@@ -23,7 +23,7 @@ static spinlock_t heap_lock;
 
 // 返回满足需要的最小分割的堆
 static int heap_class_index(uint64 size, uint64 align) {
-    if (size == 0 || size > PGSIZE || align == 0 || align > PGSIZE || (align & (align - 1)) != 0)
+    if (size == 0 || align == 0 || (align & (align - 1)) != 0)
         return -1;
     uint64 need = size > align ? size : align;
     for (int c = 0; c < HEAP_CLASS_COUNT; c++)
@@ -118,21 +118,9 @@ void kheap_init(void) {
 }
 
 // 申请一小块
-void *kmalloc(uint64 size) {
-    int c = heap_class_index(size, HEAP_DEFAULT_ALIGN);
-    if (c < 0)
-        return NULL;
-    spinlock_acquire(&heap_lock);
-    heap_page_t *p = partial[c];
-    if (p == NULL)
-        p = heap_grow_locked((uint32)c);
-    if (p == NULL) {
-        spinlock_release(&heap_lock);
-        return NULL;
-    }
-    void *result = heap_take_locked(p);
-    spinlock_release(&heap_lock);
-    return result;
+void *kmalloc(uint64 size)
+{
+    return kmalloc_aligned(size, HEAP_DEFAULT_ALIGN);
 }
 
 void *kmalloc_aligned(uint64 size, uint64 align)
@@ -195,14 +183,7 @@ void kfree(void *ptr) {
     if (p->free_count == PGSIZE / size) {
         if (!was_full)
             partial_remove(p);
-        p->active = false;
-        p->pa = 0;
-        p->class_index = 0;
-        p->free_count = 0;
-        p->used[0] = 0;
-        p->used[1] = 0;
-        p->prev = NULL;
-        p->next = NULL;
+        memset(p, 0, sizeof(*p));
         pmem_free(pa, true);
     }
     else if (was_full) {

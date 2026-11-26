@@ -32,33 +32,34 @@ void proc_make_first(void)
 {
     assert(mycpuid() == 0 && myproc() == NULL, "first process: wrong cpu/state");
     proc_t *p = &proczero;
-    void *stack = NULL, *code = NULL;
-    bool stack_mapped = false, code_mapped = false;
     memset(p, 0, sizeof(*p));
     if (initcode_len == 0 || initcode_len > PGSIZE)
         goto fail;
     p->tf = pmem_try_alloc(true);
     if (p->tf == NULL)
         goto fail;
-    // init page table
     p->pgtbl = proc_pgtbl_init((uint64)p->tf);
     if (p->pgtbl == NULL)
-        goto fail;
-    stack = pmem_try_alloc(false);
+        goto free_tf;
+
+    void *stack = pmem_try_alloc(false);
     if (stack == NULL)
-        goto fail;
-    // init user stack
-    if (!vm_try_mappage(p->pgtbl, USTACK, (uint64)stack, PTE_R | PTE_W | PTE_U))
-        goto fail;
-    stack_mapped = true;
-    code = pmem_try_alloc(false);
+        goto free_table;
+    if (!vm_try_mappage(p->pgtbl, USTACK, (uint64)stack, PTE_R | PTE_W | PTE_U)) {
+        pmem_free((uint64)stack, false);
+        goto free_table;
+    }
+
+    void *code = pmem_try_alloc(false);
     if (code == NULL)
-        goto fail;
+        goto free_stack;
     memmove(code, initcode, initcode_len);
     asm volatile("fence.i" ::: "memory");
-    if (!vm_try_mappage(p->pgtbl, USER_BASE, (uint64)code, PTE_R | PTE_X | PTE_U))
-        goto fail;
-    code_mapped = true;
+    if (!vm_try_mappage(p->pgtbl, USER_BASE, (uint64)code, PTE_R | PTE_X | PTE_U)) {
+        pmem_free((uint64)code, false);
+        goto free_stack;
+    }
+
     p->pid = 0;
     p->heap_top = USER_BASE + PGSIZE;
     p->ustack_npage = 1;
@@ -73,23 +74,15 @@ void proc_make_first(void)
     cpu->proc = p;
     swtch(&cpu->ctx, &p->ctx);
     panic("first process: unexpected context return");
+free_stack:
+    vm_unmappages(p->pgtbl, USTACK, PGSIZE, true);
+free_table:
+    vm_unmappages(p->pgtbl, TRAPFRAME, PGSIZE, false);
+    vm_unmappages(p->pgtbl, TRAMPOLINE, PGSIZE, false);
+    vm_freewalk(p->pgtbl);
+free_tf:
+    pmem_free((uint64)p->tf, true);
 fail:
-    if (p->pgtbl != NULL)
-    {
-        if (code_mapped)
-            vm_unmappages(p->pgtbl, USER_BASE, PGSIZE, false);
-        if (stack_mapped)
-            vm_unmappages(p->pgtbl, USTACK, PGSIZE, false);
-        vm_unmappages(p->pgtbl, TRAPFRAME, PGSIZE, false);
-        vm_unmappages(p->pgtbl, TRAMPOLINE, PGSIZE, false);
-        vm_freewalk(p->pgtbl);
-    }
-    if (code != NULL)
-        pmem_free((uint64)code, false);
-    if (stack != NULL)
-        pmem_free((uint64)stack, false);
-    if (p->tf != NULL)
-        pmem_free((uint64)p->tf, true);
     memset(p, 0, sizeof(*p));
     printf("proczero: creation failed (resources or image)\n");
 }

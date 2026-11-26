@@ -15,29 +15,18 @@ void print_init(void)
     spinlock_init(&print_lk, "printf");
 }
 
-/* %d %p */
-static void printint(int xx, int base, int sign)
+// 从低位开始取数字，再倒序输出。
+static void printint(uint32 value, int base)
 {
     char buf[16];
-    int i;
-    uint32 x;
+    int n = 0;
 
-    if (sign && (sign = xx < 0))
-        x = 0u - (uint32)xx;
-    else
-        x = xx;
-
-    i = 0;
-    do
-    {
-        buf[i++] = digits[x % base];
-    } while ((x /= base) != 0);
-
-    if (sign)
-        buf[i++] = '-';
-
-    while (--i >= 0)
-        uart_putc_sync(buf[i]);
+    do {
+        buf[n++] = digits[value % base];
+        value /= base;
+    } while (value);
+    while (n > 0)
+        uart_putc_sync(buf[--n]);
 }
 
 /* %x */
@@ -49,80 +38,62 @@ static void printptr(uint64 x)
         uart_putc_sync(digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
-/*
-    标准化输出, 需要支持:
-    1. %d (32位有符号数,以10进制输出)
-    2. %p (32位无符号数,以16进制输出)
-    3. %x (64位无符号数,以0x开头的16进制输出)
-    4. %c (单个字符)
-    5. %s (字符串)
-    提示: stdarg.h中的va_list中包括你需要的参数地址
-*/
+// %p 读取指针，%x 读取 64 位整数，两者都输出完整的十六进制地址格式。
 void printf(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
     spinlock_acquire(&print_lk);
-    for(int i = 0;fmt[i] != '\0';i++) {
-        if(fmt[i] != '%') {
-            uart_putc_sync(fmt[i]);
+    for (; *fmt; fmt++) {
+        if (*fmt != '%') {
+            uart_putc_sync(*fmt);
             continue;
         }
-        i++;
-        if(fmt[i] == '\0') {
+        fmt++;
+        if (*fmt == '\0') {
             uart_putc_sync('%');
             break;
         }
-        switch (fmt[i]) {
-            case 'd': {
-                int value = va_arg(ap, int);
-                printint(value, 10, 1);
-                break;
-            } 
-
-            case 'p': {
-                void * value = va_arg(ap, void *);
-                printptr((uint64)value);
-                break;
-            } 
-
-            case 'x': {
-                uint64 value = va_arg(ap, uint64);
-                printptr(value);
-                break;
-            } 
-
-            case 'c': {
-                int value = va_arg(ap, int);
-                uart_putc_sync(value);
-                break;
-            } 
-
-            case 's': {
-                char * str = va_arg(ap, char *);
-                if (str == NULL) {
-                    str = "(null)";
-                }
-                while (*str != '\0') {
-                    uart_putc_sync(*str);
-                    str++;
-                }
-                break;
-            } 
-            case '%': 
-                uart_putc_sync('%');
-                break;
-            default:
-                uart_putc_sync('%');
-                uart_putc_sync(fmt[i]);
-                break;
+        switch (*fmt) {
+        case 'd': {
+            int n = va_arg(ap, int);
+            uint32 magnitude = (uint32)n;
+            if (n < 0) {
+                uart_putc_sync('-');
+                magnitude = 0u - magnitude;
+            }
+            printint(magnitude, 10);
+            break;
+        }
+        case 'p':
+            printptr((uint64)va_arg(ap, void *));
+            break;
+        case 'x':
+            printptr(va_arg(ap, uint64));
+            break;
+        case 'c':
+            uart_putc_sync(va_arg(ap, int));
+            break;
+        case 's': {
+            char *s = va_arg(ap, char *);
+            if (s == NULL)
+                s = "(null)";
+            while (*s)
+                uart_putc_sync(*s++);
+            break;
+        }
+        case '%':
+            uart_putc_sync('%');
+            break;
+        default:
+            uart_putc_sync('%');
+            uart_putc_sync(*fmt);
+            break;
         }
     }
     spinlock_release(&print_lk);
     va_end(ap);
 }
-
-
 
 /* 如果发生panic, UART的停止标志 */
 volatile int panicked = 0;
