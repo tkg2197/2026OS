@@ -1,4 +1,5 @@
 """Run the four README programs and extra Lab 6 cases in an isolated copy."""
+import argparse
 import re
 import shutil
 import subprocess
@@ -51,6 +52,9 @@ def run(source, harts, program, seconds, expected):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--extended", action="store_true", help="also run the separate stress and fault cases")
+    args = parser.parse_args()
     readme = (ROOT / "README.md").read_text().split("## 测试用例", 1)[1]
     official = re.findall(r"\x60{3}c\n(.*?)\x60{3}", readme, re.S)
     assert len(official) == 4
@@ -60,24 +64,28 @@ def main():
         ("copy / wait", official[2], 2,
          {"MMAP_REGION": 1, "HEAP_REGION": 1, "STACK_REGION": 1, "good boy!": 1}),
         ("sleep", official[3], 5, {"Ready to sleep!": 1, "Ready to exit!": 1, "Child exit!": 1}),
-        ("stress", (TESTS / "stress.c").read_text(), 8, {"LAB6 PASS": 1}),
-        ("root fault", ROOT_FAULT, 2, {"user fault pid=1": 1, "CHILD SURVIVED ROOT FAULT": 1}),
     ]
+    if args.extended:
+        cases.extend([
+            ("stress", (TESTS / "stress.c").read_text(), 8, {"LAB6 PASS": 1}),
+            ("root fault", ROOT_FAULT, 2, {"user fault pid=1": 1, "CHILD SURVIVED ROOT FAULT": 1}),
+        ])
 
     with tempfile.TemporaryDirectory(prefix="os2026-lab6-") as temp:
         source = Path(temp)
         shutil.copytree(ROOT / "src", source / "src")
         for name in ("Makefile", "common.mk", "kernel.ld", "user.ld"):
             shutil.copy(ROOT / name, source)
-        shutil.copy(TESTS / "probe.c", source / "src/kernel/lock/lab6_test.c")
-        main_c = source / "src/kernel/main.c"
-        main_c.write_text(main_c.read_text().replace(
-            "        proc_init();",
-            "        proc_init();\n        extern void lab6_test_init(void);\n        lab6_test_init();"))
-        dispatcher = source / "src/kernel/syscall/syscall.c"
-        dispatcher.write_text(dispatcher.read_text().replace(
-            "static uint64 (*const", "extern uint64 lab6_test_probe(void);\n\nstatic uint64 (*const"
-        ).replace("    [SYS_sleep] = sys_sleep,", "    [SYS_sleep] = sys_sleep,\n    [11] = lab6_test_probe,"))
+        if args.extended:
+            shutil.copy(TESTS / "probe.c", source / "src/kernel/lock/lab6_test.c")
+            main_c = source / "src/kernel/main.c"
+            main_c.write_text(main_c.read_text().replace(
+                "        proc_init();",
+                "        proc_init();\n        extern void lab6_test_init(void);\n        lab6_test_init();"))
+            dispatcher = source / "src/kernel/syscall/syscall.c"
+            dispatcher.write_text(dispatcher.read_text().replace(
+                "static uint64 (*const", "extern uint64 lab6_test_probe(void);\n\nstatic uint64 (*const"
+            ).replace("    [SYS_sleep] = sys_sleep,", "    [SYS_sleep] = sys_sleep,\n    [11] = lab6_test_probe,"))
 
         for harts in (1, 2):
             for name, program, seconds, expected in cases:

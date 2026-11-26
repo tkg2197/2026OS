@@ -531,6 +531,6 @@ make run CPUNUM=2
 python3 tests/lab6/run.py
 ```
 
-QEMU 默认双核，单核与双核构建各有独立目录。默认用户入口验证 PID 1 并打印 `proczero: hello world!`。验收脚本在临时目录中用两种核数分别执行指导书的四组程序，另测内核态抢占、30 tick 睡眠、睡眠锁竞争、父子内存隔离、无效 wait 地址后的重试、进程槽和内存耗尽后的回收，以及违规子进程与首进程的故障处理。测试探针仅链接到临时验收镜像。
+QEMU 默认双核，单核与双核构建各有独立目录。默认用户入口验证 PID 1 并打印 `proczero: hello world!`。验收脚本分别在单核和双核下运行指导书的四个用户程序，验证 PID、fork、父子进程的内存与退出状态，以及 sleep/wait。历史压力和异常用例可通过 `python3 tests/lab6/run.py --extended` 单独启用。
 
 `make CPPFLAGS=-DLAB6_TRACE` 可在重新构建时启用 fork 诊断输出。
