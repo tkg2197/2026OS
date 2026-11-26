@@ -722,7 +722,7 @@ make build PLATFORM=vf2
 python3 tests/lab5/run.py
 ```
 
-默认用户程序在 QEMU 中完成后输出 `LAB5 PASS`。验收脚本在临时目录中运行指导书的用户复制、brk、栈扩展和 mmap 用例，并验证 UART 回显、并发节点池、跨页权限、资源耗尽回滚和页表复制/销毁。QEMU 使用双核，两套平台的产物可以交替构建。脚本还检查 VF2 Image 头、入口和管理窗口。
+默认用户程序执行指导书的测试 1，终端先显示 `1 2 3 4 5`，再显示 `hello, world`。验收脚本分开运行用户复制、`brk`、栈增长和 `mmap/munmap` 示例，并验证多核节点池以及页表复制与销毁。QEMU 使用双核，脚本也交叉构建 VF2 镜像。
 
 VisionFive2 参数来自 JH7110 的 [Linux SoC DTS](https://github.com/torvalds/linux/blob/v6.12/arch/riscv/boot/dts/starfive/jh7110.dtsi)、[板级 DTS](https://github.com/torvalds/linux/blob/v6.12/arch/riscv/boot/dts/starfive/jh7110-common.dtsi) 及 [U-Boot 板卡配置](https://github.com/u-boot/u-boot/blob/v2024.04/include/configs/starfive-visionfive2.h)。内核从 `0x40200000` 启动，使用 `[0x40200000, 0x48200000)` 管理窗口。有效 hart 是 1–4，PLIC S-context 是 2、4、6、8。UART0 使用 IRQ 32 和 32 位寄存器访问，timebase 为 4 MHz。
 

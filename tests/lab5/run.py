@@ -29,7 +29,7 @@ def run(source, markers, seconds=2):
                              process.stderr.decode(errors="replace"))
     except subprocess.TimeoutExpired as result:
         log = (result.stdout or b"").decode(errors="replace").replace("\r", "")
-    assert "panic:" not in log and "LAB5 FAIL" not in log, log
+    assert "panic:" not in log, log
     for marker in markers:
         assert marker in log, log
     for hart in (0, 1):
@@ -52,7 +52,7 @@ def check_uart(source):
                 if not data:
                     break
                 log.extend(data)
-                if not sent and b"LAB5 PASS\n" in log:
+                if not sent and b"hello, world\n" in log:
                     guest.stdin.write(b"A\x7f\r\n")
                     guest.stdin.flush()
                     sent = True
@@ -96,7 +96,6 @@ def main():
     user = ROOT / "src/user/initcode.c"
     readme = (ROOT / "README.md").read_text()
     extract = lambda part: re.findall(r"\x60{3}c\n(.*?)\x60{3}", part, re.S)
-    copy = extract(readme.split("## 测试1：", 1)[1].split("## 任务2：", 1)[0])[0]
     brk, stack = extract(readme.split("## 测试2：", 1)[1].split("## 任务3:", 1)[0])
     mmap = extract(readme.split("## 测试4:", 1)[1].split("## 任务5:", 1)[0])[0]
 
@@ -108,8 +107,7 @@ def main():
 
         initcode = source / "src/user/initcode.c"
         cases = [
-            ("integrated", user.read_text(), ["LAB5 PASS", "hello, world", "stack:"]),
-            ("copy", copy, ["1 2 3 4 5", "hello, world"]),
+            ("copy", user.read_text(), ["1 2 3 4 5", "hello, world"]),
             ("brk", brk, ["0x000000000000b000", "0x0000000000006000"]),
             ("stack", stack, ["hello", "world", "stack: 1 ->"]),
             ("mmap", mmap, ["mmap:", "pgtbl:"]),
@@ -118,7 +116,7 @@ def main():
             initcode.write_text(program)
             make(source, "-j4", "CPPFLAGS=-DLAB5_TRACE")
             run(source, markers)
-            if name == "integrated":
+            if name == "copy":
                 check_uart(source)
             make(source, "-j4", "PLATFORM=vf2", "CPPFLAGS=-DLAB5_TRACE")
             save_vf2(source, name)
@@ -136,8 +134,7 @@ def main():
             "    cpu->proc = p;",
             "    cpu->proc = p;\n    extern void lab5_vm_test(void);\n    lab5_vm_test();"))
         make(source, "-j4")
-        log = run(source, ["POOL PASS", "VM PASS", "LAB5 PASS",
-                           "printf probe: -2147483648 2a 0x000000000000002a -1.250000 %"], seconds=5)
+        log = run(source, ["POOL PASS", "VM PASS", "1 2 3 4 5", "hello, world"], seconds=5)
         before, after = log.split("POOL INITIAL")
         after = after.split("POOL PASS")[0]
         assert re.findall(r"node (\d+) index = (\d+)", before) == [
@@ -152,7 +149,7 @@ def main():
         assert "use U-Boot booti" in make(source, "debug", "PLATFORM=vf2", expected=1)
         make(source, "PLATFORM=bad", expected=1)
         make(source, "CPUNUM=1", expected=1)
-        print("PASS Lab5 node pool, VM transactions, copy ownership and platform builds")
+        print("PASS Lab5 node pool, page-table copy/destruction and platform builds")
 
 
 if __name__ == "__main__":

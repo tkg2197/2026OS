@@ -10,9 +10,9 @@ rules:
 functions:
   int main(void):
     effects:
-    - 运行数据复制、堆伸缩、多页栈扩展以及mmap/munmap组合自检。
+    - 运行测试 1。通过 SYS_copyout 读入五个整数，用 SYS_copyin 传回数组，再用 SYS_copyinstr 传递字符串。
     post:
-    - 成功输出LAB5 PASS并留在用户态，供后续串口和时钟测试。
+    - 终端依次显示 1 2 3 4 5 和 hello, world，随后在用户态循环。
   'static inline unsigned long mmap(void *start, unsigned long len);':
     effects:
     - 经 ecall 调用 SYS_mmap，保留完整64位长度。
