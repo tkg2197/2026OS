@@ -2,9 +2,9 @@
 
 Lab1 要把内核从机器启动入口带到 C 语言的 `main()`，让两个 CPU 都能输出启动信息，并解决它们同时访问共享资源时的竞争。这个阶段使用 QEMU `virt`、RISC-V RV64、双 hart，**不加载 OpenSBI，暂不开启分页**。
 
-本报告对应 `lab1` 分支已有实现，核心文件保持原样。当前 `main.c` 除了输出启动信息，还用原子加法完成两核各一百万次累加。任务要求的无锁加法、不同锁粒度、移除打印锁等对照测试，另放在 `tests/lab1`，由脚本复制到临时工程执行，不覆盖正式入口。
+默认运行时，CPU 0 初始化 UART 和打印锁，两个 CPU 各输出一行启动信息。课后并行加法和打印锁对照实验保存在本报告和独立测试目录中。
 
-实测结果：**16 个用例全部符合预期，包括 8 个正常用例、2 个实际暴露竞争的演示、6 个指定 `panic` 用例；共附 9 张实际测试截图。** 完整编译通过，测试前后内核源码与构建配置的 SHA256 一致。
+此前的实验记录：**16 个用例全部符合预期，包括 8 个正常用例、2 个实际暴露竞争的演示、6 个指定 `panic` 用例；共附 9 张实际测试截图。** 完整编译通过，测试前后内核源码与构建配置的 SHA256 一致。
 
 ![Lab1测试结果汇总](./pictures/lab1/00-summary.jpg)
 
@@ -157,9 +157,9 @@ printf("cpu %d is booting!\n", cpuid);
 
 正式入口保留已有的 GCC 屏障与 `volatile` 写法；新测试的发布变量和屏障计数使用 `__atomic` 的 release/acquire 操作，把测试自身的同步与被测数据竞争分开。
 
-### 3. 当前入口用原子加法完成回归
+### 3. 历史对照实验：双核原子加法
 
-两个 hart 都执行下面的核心操作：
+当时的测试入口让两个 hart 都执行下面的核心操作：
 
 ```c
 for (int i = 0; i < 1000000; i++)
@@ -394,7 +394,7 @@ spinlock_release(&sum_lock);
 | 无锁 `sum++` | 否 | 0 | 存在丢失更新 |
 | 每次累加加锁 | 是 | 2,000,000 | 短临界区，竞争频繁 |
 | 整轮循环加锁 | 是 | 2 | 长临界区，另一核等待时间长 |
-| 当前正式入口的原子加法 | 是 | 不使用此自旋锁 | 适合单个计数器，不能代替任意多步临界区 |
+| 历史入口的原子加法 | 是 | 不使用此自旋锁 | 适合单个计数器，不能代替任意多步临界区 |
 
 本次细粒度锁、粗粒度锁和原入口的原子加法均得到 2,000,000。测试记录的是正确性与获取锁次数，没有把一次 QEMU 运行时间当作严格的性能基准。
 
@@ -435,12 +435,12 @@ qemu-system-riscv64 -machine virt -bios none \
   -m 128M -smp 2 -accel tcg,thread=multi -nographic
 ```
 
-`make run` 可以运行正式入口；QEMU 文本界面可用 `Ctrl+A` 后按 `X` 退出。编译保留仓库的 `-Wall -Werror`。首次用例直接构建并运行当前 `main.c`，其完整日志为 [original-atomic-entry.build.log](./tests/lab1/results/original-atomic-entry.build.log)。
+`make run` 可以运行正式入口；QEMU 文本界面可用 `Ctrl+A` 后按 `X` 退出。编译保留仓库的 `-Wall -Werror`。早期用例直接构建并运行当时的 `main.c`，其完整日志为 [original-atomic-entry.build.log](./tests/lab1/results/original-atomic-entry.build.log)。
 
-一键复现全部测试：
+运行当前的双核启动测试：
 
 ```bash
-python3 tests/lab1/run.py
+python3 tests/lab1/run.py --output /tmp/lab1-boot
 
 # 只重跑一类测试时，另选输出目录，保留仓库里的首次实测记录：
 python3 tests/lab1/run.py --only printf --output /tmp/lab1-printf-recheck
@@ -457,11 +457,11 @@ python3 tests/lab1/run.py --only add- --output /tmp/lab1-add-recheck
 
 ### 2. 启动、栈与实际特权级
 
-先原样运行正式入口，确认两个核都输出启动信息、两个最终报告均为 2,000,000；再通过临时诊断入口核验每核的 `sp` 位于自己的 4 KiB 区间且 16 字节对齐，`satp=0`，切换前 MPP 为 S，PMP 权限为 `0xf`，S-mode `ecall` 的异常号为 9。
+早期记录中，两个核都输出启动信息，两个最终报告均为 2,000,000；再通过临时诊断入口核验每核的 `sp` 位于自己的 4 KiB 区间且 16 字节对齐，`satp=0`，切换前 MPP 为 S，PMP 权限为 `0xf`，S-mode `ecall` 的异常号为 9。
 
 ![双核启动与特权级验证](./pictures/lab1/01-boot.jpg)
 
-日志：[正式入口](./tests/lab1/results/original-atomic-entry.log)、[特权级与栈](./tests/lab1/results/boot-mode-stack.log)。测试陷阱入口源码为 [mtrap.S](./tests/lab1/mtrap.S)。
+日志：[早期入口](./tests/lab1/results/original-atomic-entry.log)、[特权级与栈](./tests/lab1/results/boot-mode-stack.log)。测试陷阱入口源码为 [mtrap.S](./tests/lab1/mtrap.S)。
 
 ### 3. 格式输出与整数边界
 

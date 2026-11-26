@@ -2,8 +2,6 @@
 #include "lib/mod.h"
 
 static volatile int started;
-static volatile int sum;
-static volatile int finish;
 
 int main(void)
 {
@@ -20,13 +18,6 @@ int main(void)
         printf("cpu %d is booting!\n", cpuid);
     }
 
-    for (int i = 0; i < 1000000; i++)
-        __sync_fetch_and_add(&sum, 1);
-    __sync_fetch_and_add(&finish, 1);
-    while (finish < 2)
-        ;
-    __sync_synchronize();
-    printf("cpu %d report: sum = %d\n", cpuid, sum);
     for (;;)
         ;
 }
