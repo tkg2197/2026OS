@@ -310,13 +310,20 @@ int uvm_copy_pgtbl(pgtbl_t old, pgtbl_t new, uint64 heap_top,
         heap_top > MMAP_BEGIN || stack_pages > (USER_STACK_TOP - MMAP_END) / PGSIZE)
         return -1;
 
-    int result = stage_range(new, old, USER_BASE, ALIGN_UP(heap_top, PGSIZE), 0);
-    if (result == 0)
-        result = stage_range(new, old, USER_STACK_TOP - stack_pages * PGSIZE,
-                             USER_STACK_TOP, 0);
-    for (; mmap && result == 0; mmap = mmap->next)
-        result = stage_range(new, old, mmap->begin, region_end(mmap), 0);
+    if (stage_range(new, old, USER_BASE, ALIGN_UP(heap_top, PGSIZE), 0) < 0)
+        goto fail;
+    uint64 stack_base = USER_STACK_TOP - stack_pages * PGSIZE;
+    if (stage_range(new, old, stack_base, USER_STACK_TOP, 0) < 0)
+        goto fail;
+    for (; mmap; mmap = mmap->next) {
+        if (stage_range(new, old, mmap->begin, region_end(mmap), 0) < 0)
+            goto fail;
+    }
 
-    vm_finish(new, result == 0, true);
-    return result;
+    vm_finish(new, true, true);
+    return 0;
+
+fail:
+    vm_finish(new, false, true);
+    return -1;
 }

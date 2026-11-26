@@ -1,7 +1,7 @@
 #include "mod.h"
 
 // 中断信息
-static char *interrupt_info[16] = {
+static const char *const interrupt_info[16] = {
     "U-mode software interrupt", // 0
     "S-mode software interrupt", // 1
     "reserved-1",                // 2
@@ -21,7 +21,7 @@ static char *interrupt_info[16] = {
 };
 
 // 异常信息
-static char *exception_info[16] = {
+static const char *const exception_info[16] = {
     "Instruction address misaligned", // 0
     "Instruction access fault",       // 1
     "Illegal instruction",            // 2
@@ -79,53 +79,24 @@ void trap_kernel_handler()
 
     // 确认trap来自S-mode且此时trap处于关闭状态
     assert(sstatus & SSTATUS_SPP, "trap_kernel_handler: not from s-mode");
-    assert(intr_get() == 0, "trap_kernel_handler: interreput enabled");
+    assert(intr_get() == 0, "trap_kernel_handler: interrupts enabled");
 
-    uint64 code = scause & ~(1ull << 63);
-    int trap_id = code < 16 ? (int)code : -1;
-
-    /* 高位bit标识了是中断还是异常 */
-    if (scause & 0x8000000000000000ul)
-    {
-        // 1-中断处理
-        switch (trap_id) // 中断产生原因分类
-        {
-
-        case 5:
-            timer_interrupt_handler();
-            if (myproc())
-                proc_yield();
-            break;
-        case 9:
-            external_interrupt_handler();
-            break;
-        default: // 例外处理
-            printf("\nunexpected interrupt: %s\n", trap_id < 0 ? "unknown" : interrupt_info[trap_id]);
-            printf("trap_id = %d, sepc = %x, stval = %x\n", trap_id, sepc, stval);
-            panic("trap_kernel_handler");
-        }
+    if (scause == SCAUSE_S_TIMER) {
+        timer_interrupt_handler();
+        if (myproc())
+            proc_yield();
+    } else if (scause == SCAUSE_S_EXTERNAL) {
+        external_interrupt_handler();
+    } else {
+        uint64 code = scause & ~SCAUSE_INTERRUPT;
+        bool interrupt = (scause & SCAUSE_INTERRUPT) != 0;
+        const char *const *names = interrupt ? interrupt_info : exception_info;
+        const char *name = code < 16 ? names[code] : "unknown";
+        printf("\nunexpected %s: %s\n", interrupt ? "interrupt" : "exception", name);
+        printf("trap_id = %d, sepc = %x, stval = %x\n",
+               code < 16 ? (int)code : -1, sepc, stval);
+        panic("trap_kernel_handler");
     }
-    else
-    {
-        // 2-异常处理
-        switch (trap_id) // 异常产生原因分类
-        {
-
-        case 5:
-            timer_interrupt_handler();
-            if (myproc())
-                proc_yield();
-            break;
-        case 9:
-            external_interrupt_handler();
-            break;
-        default: // 例外处理
-            printf("\nunexpected exception: %s\n", trap_id < 0 ? "unknown" : exception_info[trap_id]);
-            printf("trap_id = %d, sepc = %x, stval = %x\n", trap_id, sepc, stval);
-            panic("trap_kernel_handler");
-        }
-    }
-
     // The process may have slept on this kernel stack or migrated to a
     // different hart while handling the timer interrupt.
     w_sepc(sepc);
@@ -136,12 +107,13 @@ void trap_kernel_handler()
 void external_interrupt_handler()
 {
     int irq = plic_claim();
+    if (irq == 0)
+        return;
     if (irq == UART_IRQ)
         uart_intr();
-    else if (irq)
+    else
         printf("unexpected external IRQ %d\n", irq);
-    if (irq)
-        plic_complete(irq);
+    plic_complete(irq);
 }
 
 // 时钟中断处理 (当前内核的时钟源由OpenSBI设置)

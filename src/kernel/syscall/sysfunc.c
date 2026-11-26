@@ -18,13 +18,18 @@ uint64 sys_brk(void)
     uint64 top = arg_raw(0);
     if (!top)
         return old;
-    if (top < USER_HEAP_BASE || top > MMAP_BEGIN ||
-        (top < old ? old - top : top - old) > (uint32)-1)
+    uint64 len = top < old ? old - top : top - old;
+    if (len > (uint32)-1)
         return -1;
-    uint64 result = top < old ? uvm_heap_ungrow(p->pgtbl, old, old - top)
-                              : uvm_heap_grow(p->pgtbl, old, top - old);
-    if (result != (uint64)-1)
-        p->heap_top = result;
+
+    uint64 result;
+    if (top < old)
+        result = uvm_heap_ungrow(p->pgtbl, old, len);
+    else
+        result = uvm_heap_grow(p->pgtbl, old, len);
+    if (result == (uint64)-1)
+        return -1;
+    p->heap_top = result;
     return result;
 }
 
@@ -44,9 +49,9 @@ uint64 sys_mmap(void)
 uint64 sys_munmap(void)
 {
     uint64 len = arg_raw(1);
-    if (!valid_map_length(len) || uvm_munmap(arg_raw(0), len / PGSIZE) < 0)
+    if (!valid_map_length(len))
         return -1;
-    return 0;
+    return uvm_munmap(arg_raw(0), len / PGSIZE);
 }
 
 uint64 sys_print_int(void)
