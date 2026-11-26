@@ -47,16 +47,19 @@ uint64 sys_brk(void)
     uint64 top = arg_raw(0);
     if (!top)
         return old;
-    if (top < USER_HEAP_BASE || top > MMAP_BEGIN ||
-        (top < old ? old - top : top - old) > (uint32)-1)
+    uint64 len = top < old ? old - top : top - old;
+    if (len > (uint32)-1)
         return -1;
-    uint64 result = top < old ? uvm_heap_ungrow(p->pgtbl, old, old - top)
-                              : uvm_heap_grow(p->pgtbl, old, top - old);
-    if (result != (uint64)-1)
-    {
-        p->heap_top = result;
-        printf("brk: %x -> %x\n", old, result);
-    }
+
+    uint64 result;
+    if (top < old)
+        result = uvm_heap_ungrow(p->pgtbl, old, len);
+    else
+        result = uvm_heap_grow(p->pgtbl, old, len);
+    if (result == (uint64)-1)
+        return -1;
+    p->heap_top = result;
+    printf("brk: %x -> %x\n", old, result);
     return result;
 }
 

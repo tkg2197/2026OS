@@ -17,9 +17,9 @@ void trap_user_handler(void)
         intr_on();
         syscall();
     }
-    else if (cause == ((1ull << 63) | 5))
+    else if (cause == SCAUSE_S_TIMER)
         timer_interrupt_handler();
-    else if (cause == ((1ull << 63) | 9))
+    else if (cause == SCAUSE_S_EXTERNAL)
         external_interrupt_handler();
     else if (cause == 13 || cause == 15)
     {

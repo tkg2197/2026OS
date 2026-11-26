@@ -18,8 +18,10 @@ void syscall()
     proc_t *p = myproc();
 
     uint64 num = p->tf->a7;
-    p->tf->a0 = num < sizeof(syscalls) / sizeof(syscalls[0]) && syscalls[num]
-        ? syscalls[num]() : (uint64)-1;
+    if (num < sizeof(syscalls) / sizeof(syscalls[0]) && syscalls[num])
+        p->tf->a0 = syscalls[num]();
+    else
+        p->tf->a0 = (uint64)-1;
 }
 
 /*
