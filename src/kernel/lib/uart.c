@@ -2,8 +2,8 @@
 
 #include "mod.h"
 
-// from printf.c 终止输出的标志
-extern volatile int panicked;
+// panic 开始后停止普通输出。
+extern int panicked;
 
 // uart 初始化
 void uart_init(void)
@@ -33,9 +33,10 @@ void uart_enable_rx_interrupt(void)
 	WriteReg(IER, IER_RX_ENABLE);
 }
 
-// Panic output can run even when the current hart has no valid CPU slot.
 void uart_putc_raw(int c)
 {
+    while (__atomic_load_n(&panicked, __ATOMIC_RELAXED))
+        ;
     while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
         ;
     WriteReg(THR, (uint8)c);
@@ -44,10 +45,19 @@ void uart_putc_raw(int c)
 void uart_putc_sync(int c)
 {
     push_off();
-    while (panicked)
-        ;
     uart_putc_raw(c);
     pop_off();
+}
+
+// panic 可能发生在持锁期间；UART 故障时每个字符最多轮询有限次。
+void uart_putc_emergency(int c)
+{
+    for (int i = 0; i < 1000000; i++) {
+        if (ReadReg(LSR) & LSR_TX_IDLE) {
+            WriteReg(THR, (uint8)c);
+            return;
+        }
+    }
 }
 
 // 单个字符输入

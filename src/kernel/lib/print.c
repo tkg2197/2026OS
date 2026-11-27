@@ -2,7 +2,7 @@
 
 #include "mod.h"
 
-static char digits[] = "0123456789abcdef";
+static const char digits[] = "0123456789abcdef";
 
 /* printf的自旋锁 */
 static spinlock_t print_lk;
@@ -14,7 +14,32 @@ void print_init(void)
     spinlock_init(&print_lk, "printf");
 }
 
-static void print_unsigned(uint64 value, unsigned int base)
+struct printbuf {
+    char data[512];
+    unsigned int len;
+    bool locked;
+};
+
+// 短消息格式化完成后才加锁；长消息从第一次刷出到最后一个字节都持锁。
+static void flush(struct printbuf *out)
+{
+    if (!out->locked) {
+        spinlock_acquire(&print_lk);
+        out->locked = true;
+    }
+    for (unsigned int i = 0; i < out->len; i++)
+        uart_putc_raw(out->data[i]);
+    out->len = 0;
+}
+
+static void put_char(struct printbuf *out, char c)
+{
+    if (out->len == sizeof(out->data))
+        flush(out);
+    out->data[out->len++] = c;
+}
+
+static void print_unsigned(struct printbuf *out, uint64 value, unsigned int base)
 {
     char buf[32];
     int i = 0;
@@ -24,34 +49,34 @@ static void print_unsigned(uint64 value, unsigned int base)
     } while ((value /= base) != 0);
 
     while (--i >= 0)
-        uart_putc_sync(buf[i]);
+        put_char(out, buf[i]);
 }
 
-static void printint(int value)
+static void printint(struct printbuf *out, int value)
 {
     if (value < 0)
-        uart_putc_sync('-');
-    print_unsigned(value < 0 ? 0u - (uint32)value : (uint32)value, 10);
+        put_char(out, '-');
+    print_unsigned(out, value < 0 ? 0u - (uint32)value : (uint32)value, 10);
 }
 
 /* %x */
-static void printptr(uint64 x)
+static void printptr(struct printbuf *out, uint64 x)
 {
-    uart_putc_sync('0');
-    uart_putc_sync('x');
+    put_char(out, '0');
+    put_char(out, 'x');
     for (int i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
-        uart_putc_sync(digits[x >> (sizeof(uint64) * 8 - 4)]);
+        put_char(out, digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
 // Decode the binary64 argument using integer operations. Trap paths do
 // not enable the floating-point unit or save floating-point registers.
-static void printfloat(double value)
+static void printfloat(struct printbuf *out, double value)
 {
     union { double value; uint64 bits; } number = { .value = value };
     uint64 significand = number.bits & ((1ull << 52) - 1);
     int exponent = (number.bits >> 52) & 0x7ff;
     if (number.bits >> 63)
-        uart_putc_sync('-');
+        put_char(out, '-');
     if (exponent)
         significand |= 1ull << 52;
     int shift = 1075 - (exponent ? exponent : 1);
@@ -66,8 +91,8 @@ static void printfloat(double value)
         fraction = significand - ((__uint128_t)whole << shift);
     }
 
-    print_unsigned(whole, 10);
-    uart_putc_sync('.');
+    print_unsigned(out, whole, 10);
+    put_char(out, '.');
     for (int i = 0; i < 6; i++)
     {
         unsigned int digit = 0;
@@ -77,17 +102,17 @@ static void printfloat(double value)
             digit = fraction >> shift;
             fraction -= (__uint128_t)digit << shift;
         }
-        uart_putc_sync('0' + digit);
+        put_char(out, '0' + digit);
     }
 }
 
-static void vprint(const char *fmt, va_list ap)
+static void format(struct printbuf *out, const char *fmt, va_list ap)
 {
     for (; *fmt; fmt++)
     {
         if (*fmt != '%')
         {
-            uart_putc_sync(*fmt);
+            put_char(out, *fmt);
             continue;
         }
         if (!*++fmt)
@@ -95,30 +120,30 @@ static void vprint(const char *fmt, va_list ap)
         switch (*fmt)
         {
         case 'd':
-            printint(va_arg(ap, int));
+            printint(out, va_arg(ap, int));
             break;
         case 'x':
-            printptr(va_arg(ap, uint64));
+            printptr(out, va_arg(ap, uint64));
             break;
         case 'p':
-            print_unsigned(va_arg(ap, uint32), 16);
+            print_unsigned(out, va_arg(ap, uint32), 16);
             break;
         case 'f':
-            printfloat(va_arg(ap, double));
+            printfloat(out, va_arg(ap, double));
             break;
         case 'c':
-            uart_putc_sync(va_arg(ap, int));
+            put_char(out, va_arg(ap, int));
             break;
         case 's': {
             const char *s = va_arg(ap, const char *);
             for (s = s ? s : "(null)"; *s; s++)
-                uart_putc_sync(*s);
+                put_char(out, *s);
             break;
         }
         default:
             if (*fmt != '%')
-                uart_putc_sync('%');
-            uart_putc_sync(*fmt);
+                put_char(out, '%');
+            put_char(out, *fmt);
             break;
         }
     }
@@ -126,31 +151,34 @@ static void vprint(const char *fmt, va_list ap)
 
 void printf(const char *fmt, ...)
 {
+    struct printbuf out;
+    out.len = 0;
+    out.locked = false;
+
     va_list ap;
     va_start(ap, fmt);
-    spinlock_acquire(&print_lk);
-    vprint(fmt, ap);
-    spinlock_release(&print_lk);
+    format(&out, fmt, ap);
     va_end(ap);
+
+    flush(&out);
+    spinlock_release(&print_lk);
 }
 
-/* 如果发生panic, UART的停止标志 */
-volatile int panicked = 0;
+int panicked;
 
-/* 报错并终止输出 */
 void panic(const char *s)
 {
     intr_off();
-    // Report invariants even when the current hart already holds print_lk.
-    const char *prefix = "panic: ";
-    while (*prefix)
-        uart_putc_raw(*prefix++);
-    while (s && *s)
-        uart_putc_raw(*s++);
-    uart_putc_raw('\n');
-    panicked = 1;
-    while (1)
-        ;
+    if (__atomic_exchange_n(&panicked, 1, __ATOMIC_RELAXED) == 0) {
+        const char *prefix = "panic: ";
+        while (*prefix)
+            uart_putc_emergency(*prefix++);
+        while (s && *s)
+            uart_putc_emergency(*s++);
+        uart_putc_emergency('\n');
+    }
+    for (;;)
+        asm volatile("wfi");
 }
 
 /* 如果不满足条件, 则调用panic */
