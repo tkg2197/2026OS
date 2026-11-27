@@ -7,7 +7,7 @@
 extern void _entry(void);
 extern uint64 initial_hart;
 
-static volatile int initialized = 0;
+static int initialized = 0;
 
 void main(void)
 {

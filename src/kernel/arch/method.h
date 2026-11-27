@@ -131,10 +131,17 @@ static inline void intr_on()
     w_sstatus(r_sstatus() | SSTATUS_SIE);
 }
 
-// 关闭设备中断
+// 关闭本核中断，返回原来的 SIE 状态。
+static inline int intr_save_off(void)
+{
+    uint64 old;
+    asm volatile("csrrci %0, sstatus, %1" : "=r"(old) : "i"(SSTATUS_SIE) : "memory");
+    return (old & SSTATUS_SIE) != 0;
+}
+
 static inline void intr_off()
 {
-    w_sstatus(r_sstatus() & ~SSTATUS_SIE);
+    intr_save_off();
 }
 
 // 设备中断是否打开
