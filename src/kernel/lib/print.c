@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include "mod.h"
 
-static char digits[] = "0123456789abcdef";
+static const char digits[] = "0123456789abcdef";
 
 /* printf的自旋锁 */
 static spinlock_t print_lk;
@@ -15,8 +15,33 @@ void print_init(void)
     spinlock_init(&print_lk, "printf");
 }
 
+struct printbuf {
+    char data[512];
+    unsigned int len;
+    bool locked;
+};
+
+// 短消息格式化完成后才加锁；长消息从第一次刷出到最后一个字节都持锁。
+static void flush(struct printbuf *out)
+{
+    if (!out->locked) {
+        spinlock_acquire(&print_lk);
+        out->locked = true;
+    }
+    for (unsigned int i = 0; i < out->len; i++)
+        uart_putc_raw(out->data[i]);
+    out->len = 0;
+}
+
+static void put_char(struct printbuf *out, char c)
+{
+    if (out->len == sizeof(out->data))
+        flush(out);
+    out->data[out->len++] = c;
+}
+
 // 从低位开始取数字，再倒序输出。
-static void printint(uint32 value, int base)
+static void printint(struct printbuf *out, uint32 value, int base)
 {
     char buf[16];
     int n = 0;
@@ -26,32 +51,29 @@ static void printint(uint32 value, int base)
         value /= base;
     } while (value);
     while (n > 0)
-        uart_putc_sync(buf[--n]);
+        put_char(out, buf[--n]);
 }
 
 /* %x */
-static void printptr(uint64 x)
+static void printptr(struct printbuf *out, uint64 x)
 {
-    uart_putc_sync('0');
-    uart_putc_sync('x');
+    put_char(out, '0');
+    put_char(out, 'x');
     for (int i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
-        uart_putc_sync(digits[x >> (sizeof(uint64) * 8 - 4)]);
+        put_char(out, digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
 // Lab 1 约定 %p 输出 32 位十六进制数，%x 输出带 0x 前缀的 64 位数。
-void printf(const char *fmt, ...)
+static void format(struct printbuf *out, const char *fmt, va_list ap)
 {
-    va_list ap;
-    va_start(ap, fmt);
-    spinlock_acquire(&print_lk);
     for (; *fmt; fmt++) {
         if (*fmt != '%') {
-            uart_putc_sync(*fmt);
+            put_char(out, *fmt);
             continue;
         }
         fmt++;
         if (*fmt == '\0') {
-            uart_putc_sync('%');
+            put_char(out, '%');
             break;
         }
         switch (*fmt) {
@@ -59,52 +81,72 @@ void printf(const char *fmt, ...)
             int n = va_arg(ap, int);
             uint32 magnitude = (uint32)n;
             if (n < 0) {
-                uart_putc_sync('-');
+                put_char(out, '-');
                 magnitude = 0u - magnitude;
             }
-            printint(magnitude, 10);
+            printint(out, magnitude, 10);
             break;
         }
         case 'p':
-            printint(va_arg(ap, uint32), 16);
+            printint(out, va_arg(ap, uint32), 16);
             break;
         case 'x':
-            printptr(va_arg(ap, uint64));
+            printptr(out, va_arg(ap, uint64));
             break;
         case 'c':
-            uart_putc_sync(va_arg(ap, int));
+            put_char(out, va_arg(ap, int));
             break;
         case 's': {
             char *s = va_arg(ap, char *);
             if (s == NULL)
                 s = "(null)";
             while (*s)
-                uart_putc_sync(*s++);
+                put_char(out, *s++);
             break;
         }
         case '%':
-            uart_putc_sync('%');
+            put_char(out, '%');
             break;
         default:
-            uart_putc_sync('%');
-            uart_putc_sync(*fmt);
+            put_char(out, '%');
+            put_char(out, *fmt);
             break;
         }
     }
-    spinlock_release(&print_lk);
-    va_end(ap);
 }
 
-/* 如果发生panic, UART的停止标志 */
-volatile int panicked = 0;
+void printf(const char *fmt, ...)
+{
+    struct printbuf out;
+    out.len = 0;
+    out.locked = false;
 
-/* 报错并终止输出 */
+    va_list ap;
+    va_start(ap, fmt);
+    format(&out, fmt, ap);
+    va_end(ap);
+
+    flush(&out);
+    spinlock_release(&print_lk);
+}
+
+int panicked;
+
 void panic(const char *s)
 {
-    printf("panic! %s\n", s);
-    panicked = 1;
-    while (1)
-        ;
+    intr_off();
+    if (__atomic_exchange_n(&panicked, 1, __ATOMIC_RELAXED) == 0) {
+        const char *prefix = "panic! ";
+        while (*prefix)
+            uart_putc_emergency(*prefix++);
+        if (!s)
+            s = "(null)";
+        while (*s)
+            uart_putc_emergency(*s++);
+        uart_putc_emergency('\n');
+    }
+    for (;;)
+        asm volatile("wfi");
 }
 
 /* 如果不满足条件, 则调用panic */
