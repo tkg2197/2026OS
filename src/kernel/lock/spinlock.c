@@ -51,8 +51,12 @@ void spinlock_acquire(spinlock_t *lk)
 {
     push_off();
     assert(!spinlock_holding(lk), "recursive spinlock acquire");
-    while (__atomic_exchange_n(&lk->locked, 1, __ATOMIC_ACQUIRE))
-        ;
+    for (;;) {
+        while (__atomic_load_n(&lk->locked, __ATOMIC_RELAXED))
+            ;
+        if (__atomic_exchange_n(&lk->locked, 1, __ATOMIC_ACQUIRE) == 0)
+            break;
+    }
     __atomic_store_n(&lk->owner, r_tp(), __ATOMIC_RELAXED);
 }
 
