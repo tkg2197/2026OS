@@ -19,7 +19,7 @@ extern void _entry(void);
 #define STRESS_SLOTS 12
 #define STRESS_ROUNDS 64
 
-static volatile int initialized;
+static int initialized;
 static uint32 concurrent_baseline;
 static void *exhausted_blocks[KERN_PAGES];
 

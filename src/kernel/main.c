@@ -4,7 +4,7 @@
 
 extern void _entry(void);
 
-static volatile int initialized = 0;
+static int initialized = 0;
 
 // 第三阶段 test-2：建立两个映射，检查物理地址和权限，然后解除映射。
 static void test_mapping_and_unmapping(void)

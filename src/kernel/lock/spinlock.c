@@ -12,8 +12,7 @@
 // 带层数叠加的关中断
 void push_off(void)
 {
-    int old = intr_get();
-    intr_off();
+    int old = intr_save_off();
     cpu_t *cpu = mycpu();
     if (cpu->noff == 0)
         cpu->origin = old;

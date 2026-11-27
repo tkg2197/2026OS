@@ -8,7 +8,7 @@
 #define ROUNDS 12
 
 extern void _entry(void);
-static volatile int initialized;
+static int initialized;
 static volatile int ready[NCPU], released[NCPU];
 static volatile int allow_free;
 static uint64 held[NCPU][HELD]; // 放在全局区，避免占满小容量启动栈。
