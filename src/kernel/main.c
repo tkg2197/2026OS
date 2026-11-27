@@ -1,7 +1,7 @@
 #include "arch/mod.h"
 #include "lib/mod.h"
 
-static volatile int started;
+static int started;
 
 int main(void)
 {
@@ -9,15 +9,13 @@ int main(void)
     if (cpuid == 0) {
         print_init();
         printf("cpu %d is booting!\n", cpuid);
-        __sync_synchronize();
-        started = 1;
+        __atomic_store_n(&started, 1, __ATOMIC_RELEASE);
     } else {
-        while (!started)
+        while (!__atomic_load_n(&started, __ATOMIC_ACQUIRE))
             ;
-        __sync_synchronize();
         printf("cpu %d is booting!\n", cpuid);
     }
 
     for (;;)
-        ;
+        asm volatile("wfi");
 }

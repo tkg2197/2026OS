@@ -17,4 +17,5 @@ _entry:
         # 跳转到start
         call start
 spin:
+        wfi
         j spin
