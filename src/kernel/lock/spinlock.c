@@ -43,7 +43,8 @@ void spinlock_init(spinlock_t *lk, char *name)
 // 是否持有自旋锁
 bool spinlock_holding(spinlock_t *lk)
 {
-    return lk->locked && lk->cpuid == mycpuid();
+    return __atomic_load_n(&lk->locked, __ATOMIC_RELAXED) &&
+           __atomic_load_n(&lk->cpuid, __ATOMIC_RELAXED) == mycpuid();
 }
 
 // 获取自选锁
@@ -51,17 +52,20 @@ void spinlock_acquire(spinlock_t *lk)
 {
     push_off();
     assert(!spinlock_holding(lk), "spinlock_acquire: already holding\n");
-    while(__sync_lock_test_and_set(&lk->locked, 1) != 0);
-    __sync_synchronize();
-    lk->cpuid = mycpuid();
+    for (;;) {
+        while (__atomic_load_n(&lk->locked, __ATOMIC_RELAXED))
+            ;
+        if (__atomic_exchange_n(&lk->locked, 1, __ATOMIC_ACQUIRE) == 0)
+            break;
+    }
+    __atomic_store_n(&lk->cpuid, mycpuid(), __ATOMIC_RELAXED);
 }
 
 // 释放自旋锁
 void spinlock_release(spinlock_t *lk)
 {
     assert(spinlock_holding(lk), "spinlock_release: not holding\n");
-    lk->cpuid = -1;
-    __sync_synchronize();
-    __sync_lock_release(&lk->locked);
+    __atomic_store_n(&lk->cpuid, -1, __ATOMIC_RELAXED);
+    __atomic_store_n(&lk->locked, 0, __ATOMIC_RELEASE);
     pop_off();
 }

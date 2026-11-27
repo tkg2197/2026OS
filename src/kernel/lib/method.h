@@ -10,6 +10,9 @@ void assert(bool condition, const char *warning);
 /* uart.c: UART驱动函数 */
 
 void uart_init(void);
+// 调用 raw 前须已关闭本核中断。
+void uart_putc_raw(int c);
+void uart_putc_emergency(int c);
 void uart_putc_sync(int c);
 int uart_getc_sync(void);
 void uart_intr(void);
