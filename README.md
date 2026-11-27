@@ -65,6 +65,43 @@ TTAS 的优点在于将大量原子读改写操作转化为普通的原子读取
 
 **删去无用的内存屏障**：实际上，acquire和release中的__atomic系列函数已经足以保证临界区中的数据按照约定顺序存取，不用加入内存屏障。
 
+**优化intr_on和intr_off**:原来的intr_on需要读取一次csr,完成写入，写回csr，一共三次完成：
+
+```c
+static inline void intr_on()
+{
+    w_sstatus(r_sstatus() | SSTATUS_SIE);
+}
+```
+
+但实际上，risv_v早就设计了指令让我们用一步把大象装进冰箱：
+
+```c
+csrrci a0, sstatus, 2
+```
+
+一步就可以同时保存旧的 `sstatus` 和关闭中断
+
+具体来说可以这样修改：
+
+```c
+static inline int intr_save_off()
+{
+    uint64 old;
+
+    asm volatile(
+        "csrrci %0, sstatus, 2"
+        : "=r"(old)
+        :
+        : "memory"
+    );
+
+    return (old & SSTATUS_SIE) != 0;
+}
+```
+
+
+
 **缩小临界区**：朴素printf的实现是这样的：
 
 ```c
